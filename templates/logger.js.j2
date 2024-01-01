@@ -11,9 +11,23 @@ Interceptor.attach({{ func.name }}_ptr, {
 				{%- set index = loop.index0 | string -%}
 				{{- argparse_str(param, "args[" + index + "]") -}},
 			{%- endfor -%})`);
+
+		{%- if "brida_prehook" in func.comment %}
+		{{ func.comment.split("brida_prehook:")[1].split("\n")[0].strip() }}
+		{%- endif -%}
 	},
 	onLeave: function(retval) {
-		send(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {% endif %}`);
+		{%- if "brida_return" in func.comment -%}
+		{%- set new_retval = func.comment.split("brida_return:")[1].split("\n")[0].strip() -%}
+		{%- endif -%}
+		send(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {%- endif %}{% if "brida_return" in func.comment %} ~> {{ new_retval }}{% endif %}`);
+
+		{%- if "brida_posthook" in func.comment %}
+		{{ func.comment.split("brida_posthook:")[1].split("\n")[0].strip() }}
+		{% endif -%}
+		{%- if "brida_return" in func.comment %}
+		retval.replace({{ new_retval }})
+		{%- endif -%}
 	}
 });
 {% endfor %}

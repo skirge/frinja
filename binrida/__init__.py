@@ -226,10 +226,8 @@ def start_frida(bv: bn.BinaryView):
 
     log_targets = _get_functions_by_tag(bv, LOG_TAG_TYPE)
     bn.log.log_info(f"Logging the following functions: " + ",".join([f.name for f in log_targets]), "BinRida")
-
     template = env.get_template("logger.js.j2")
     script = template.render(targets=log_targets, bv=bv)
-    # print(script)
 
     data = {}
     data["script"] = script
