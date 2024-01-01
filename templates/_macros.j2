@@ -1,42 +1,42 @@
-{% macro argparse_str(param, var) -%}
+{% macro argparse(param, var) -%}
 	{%- set type = param.type.__str__() -%}
 	{%- if type == "char*" -%}
-		{{ param.name }}: ${ {{- var }}.readAnsiString()}
+		{{- var }}.readAnsiString()
 	{%- elif type == "wchar_t*" -%}
-		{{ param.name }}: ${ {{- var }}.readUtf16String()}
+		{{- var }}.readUtf16String()
 	{%- elif type == "int" -%}
-		{{ param.name }}: ${ {{- var }}.readInt()}
+		{{- var }}.readInt()
 	{%- elif type == "uint" -%}
-		{{ param.name }}: ${ {{- var }}.readUInt()}
+		{{- var }}.readUInt()
 	{%- elif type == "float" -%}
-		{{ param.name }}: ${ {{- var }}.readFloat()}
+		{{- var }}.readFloat()
 	{%- elif type == "double" -%}
-		{{ param.name }}: ${ {{- var }}.readDouble()}
+		{{- var }}.readDouble()
 	{%- elif type == "bool" -%}
-		{{ param.name }}: ${ {{- var }}.readU8()}
+		{{- var }}.readU8()
 	{%- elif type == "char" -%}
-		{{ param.name }}: ${ {{- var }}.readU8()}
+		{{- var }}.readU8()
 	{%- elif type == "wchar_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU16()}
+		{{- var }}.readU16()
 	{%- elif type == "int8_t" -%}
-		{{ param.name }}: ${ {{- var }}.readS8()}
+		{{- var }}.readS8()
 	{%- elif type == "uint8_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU8()}
+		{{- var }}.readU8()
 	{%- elif type == "int16_t" -%}
-		{{ param.name }}: ${ {{- var }}.readS16()}
+		{{- var }}.readS16()
 	{%- elif type == "uint16_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU16()}
+		{{- var }}.readU16()
 	{%- elif type == "int32_t" -%}
-		{{ param.name }}: ${ {{- var }}.readS32()}
+		{{- var }}.readS32()
 	{%- elif type == "uint32_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU32()}
+		{{- var }}.readU32()
 	{%- elif type == "int64_t" -%}
-		{{ param.name }}: ${ {{- var }}.readS64()}
+		{{- var }}.readS64()
 	{%- elif type == "uint64_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU64()}
+		{{- var }}.readU64()
 	{%- elif type == "size_t" -%}
-		{{ param.name }}: ${ {{- var }}.readU64()}
+		{{- var }}.readU64()
 	{%- elif type.endswith("*") -%}
-		{{ param.name }}: ${ {{- var }}.readPointer()}
+		{{- var }}.readPointer()
 	{%- endif -%}
 {%- endmacro %}

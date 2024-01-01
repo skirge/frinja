@@ -1,4 +1,4 @@
-{%- from "_macros.j2" import argparse_str -%}
+{%- from "_macros.j2" import argparse -%}
 
 {%- for func in targets -%}
 const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
@@ -9,10 +9,14 @@ Interceptor.attach({{ func.name }}_ptr, {
 		send(`{{ func.name }}(
 			{%- for param in func.type.parameters -%}
 				{%- set index = loop.index0 | string -%}
-				{{- argparse_str(param, "args[" + index + "]") -}},
+				{{ param.name }}: ${ {{- argparse(param, "args[" + index + "]") -}} },
 			{%- endfor -%})`);
 
 		{%- if "brida_prehook" in func.comment %}
+		{%- for param in func.type.parameters -%}
+			{%- set index = loop.index0 | string -%}
+			const {{ param.name }} = ${ {{- argparse(param, "args[" + index + "]") -}} };
+		{% endfor -%})`);
 		{{ func.comment.split("brida_prehook:")[1].split("\n")[0].strip() }}
 		{%- endif -%}
 	},

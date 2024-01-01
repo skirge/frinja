@@ -210,13 +210,14 @@ def start_instrumentation(bv,address):
     stalker.join()
 
 LOG_SCRIPT = ""
-LOG_TAG_TYPE = "BinRida: Log function calls"
+LOG_TAG_TYPE = "BinRida Instrumented"
 def mark_log(bv: bn.BinaryView, func: bn.Function):
     if not bv.get_tag_type(LOG_TAG_TYPE):
-        bv.create_tag_type(LOG_TAG_TYPE, "🪵")
+        bv.create_tag_type(LOG_TAG_TYPE, "📜")
 
-    func.add_tag("BinRida: Log function calls", "Log function calls", None, auto=True)
-    bn.log.log_info(f"Function {func.name} marked for logging", "BinRida")
+    if not func.get_function_tags(True, LOG_TAG_TYPE):
+        func.add_tag(LOG_TAG_TYPE, "Log function calls", None)
+        bn.log.log_info(f"Function {func.name} marked for logging", "BinRida")
 
 def _get_functions_by_tag(bv, tag):
     return [f for f in bv.functions if f.get_function_tags(True, tag)]

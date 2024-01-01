@@ -31,3 +31,4 @@ bn.PluginCommand.register('BINRIDA: Stalk program execution', 'Stalk the process
 bn.PluginCommand.register_for_function('BINRIDA: Dump context of this function','Dump the context of this function with Frida', brida.start_dump)
 bn.PluginCommand.register_for_address('BINRIDA: Instrument this address','Instrument this address with Frida', brida.start_instrumentation)
 bn.PluginCommand.register_for_function('BINRIDA: Log function','Log function calls with arguments and return values', brida.mark_log)
+bn.PluginCommand.register('BINRIDA: Start Frida','Start the process and apply all the loggers/hookers', brida.start_frida)
