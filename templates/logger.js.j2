@@ -1,0 +1,18 @@
+{%- from "_macros.j2" import argparse_str -%}
+
+{%- for func in targets -%}
+const {{ func.name }}_ptr = new NativePointer({{ '%#x' % func.lowest_address }});
+Interceptor.attach({{ func.name }}_ptr, {
+	onEnter: function(args) {
+		console.log(`{{ func.name }}(
+			{%- for param in func.type.parameters -%}
+				{%- set index = loop.index0 | string -%}
+				{{- argparse_str(param, "args[" + index + "]") -}},
+			{%- endfor -%})
+		`);
+	},
+	onLeave: function(retval) {
+		console.log(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {% endif %}`);
+	}
+});
+{% endfor %}

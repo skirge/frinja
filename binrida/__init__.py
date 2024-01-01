@@ -26,6 +26,11 @@ import psutil
 import frida
 from .FridaHandler import FridaHandler
 from .output import *
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+env = Environment(
+    loader=FileSystemLoader(bn.user_plugin_path() + "/BinRida/templates"),
+    autoescape=select_autoescape()
+)
 
 SETTINGS = {}
 
@@ -36,134 +41,191 @@ def SettingsGUI(bv,action=None,extra_settings=None):
     ## TODO:: TCP GUI
     f_appName   = bn.TextLineField('Application\t', SETTINGS['name'] if 'name' in SETTINGS.keys() else None)
     cmdLine     = bn.TextLineField('Command line\t', SETTINGS['cmd'] if 'cmd' in SETTINGS.keys() else None)
-    spawn       = bn.ChoiceField('Execution mode\t',['Spawn a new process', 'Attacch to PID'], SETTINGS['spawn'] if 'spawn' in SETTINGS.keys() else None)
+    spawn       = bn.ChoiceField('Execution mode\t', ['Spawn a new process', 'Attacch to PID'], SETTINGS['spawn'] if 'spawn' in SETTINGS.keys() else None)
     pid         = []
 
     ## I don't know if it is usefull or it is a problem... for example, remote attach
     for i in psutil.process_iter(attrs=['pid','name']):
-        pid.append(i.info['name']+' ('+str(i.info['pid'])+')')
+        pid.append(i.info['name'] + ' (' + str(i.info['pid']) + ')')
 
     f_pid       = bn.ChoiceField('PID\t', pid, SETTINGS['pid'] if 'pid' in SETTINGS.keys() else None)
     form        = [bn.LabelField('Frida general settings'), bn.SeparatorField(),f_dev,f_appName,cmdLine,spawn,f_pid]
     if extra_settings != None:
-        form += [bn.SeparatorField(),bn.LabelField(action)] + extra_settings
-    ret         = bn.interaction.get_form_input(form, 'BinRida')
+        form += [bn.SeparatorField(), bn.LabelField(action)] + extra_settings
+    ret = bn.interaction.get_form_input(form, 'BinRida')
+
     ## Global settings
-    #  settings = {}
     if ret:
-        SETTINGS['dev']  = devices[f_dev.result]
-        SETTINGS['dev_id']  = f_dev.result
+        SETTINGS['dev'] = devices[f_dev.result]
+        SETTINGS['dev_id'] = f_dev.result
         SETTINGS['name'] = f_appName.result
-        SETTINGS['pid']  = int(pid[f_pid.result].split('(')[1][:-1])
+        SETTINGS['pid'] = int(pid[f_pid.result].split('(')[1][:-1])
         #  0 for spawn, 1 else
-        SETTINGS['spawn']= spawn.result
-        SETTINGS['cmd']  = cmdLine.result
+        SETTINGS['spawn'] = spawn.result
+        SETTINGS['cmd'] = cmdLine.result
+
     return ret,SETTINGS
 
 def start_stalking(bv,addr = None):
-    colors      = [bn.HighlightStandardColor.BlueHighlightColor, bn.HighlightStandardColor.CyanHighlightColor, 	bn.HighlightStandardColor.GreenHighlightColor,bn.HighlightStandardColor.MagentaHighlightColor, bn.HighlightStandardColor.OrangeHighlightColor, bn.HighlightStandardColor.RedHighlightColor, bn.HighlightStandardColor.WhiteHighlightColor,bn.HighlightStandardColor.YellowHighlightColor]
-    f_colors    = bn.ChoiceField('Highlight color\t',[ a.name for a in colors])
+    colors = [bn.HighlightStandardColor.BlueHighlightColor, bn.HighlightStandardColor.CyanHighlightColor, 	bn.HighlightStandardColor.GreenHighlightColor,bn.HighlightStandardColor.MagentaHighlightColor, bn.HighlightStandardColor.OrangeHighlightColor, bn.HighlightStandardColor.RedHighlightColor, bn.HighlightStandardColor.WhiteHighlightColor,bn.HighlightStandardColor.YellowHighlightColor]
+    f_colors = bn.ChoiceField('Highlight color\t',[ a.name for a in colors])
     extra_settings = [f_colors]
     ret,settings = SettingsGUI(bv,'Stalker',extra_settings)
-    if ret:
-        execute = bv.file.original_filename
-        if settings['name'] != "":
-            execute = settings['name']
-        bn.log.log_info('Start \''+execute+' '+settings['cmd']+'\' on '+settings['dev'].id+' device ')
-        data = {}
-        ## Set the device
-        data['device']  = settings['dev']
-        ## Command to spawn
-        data['execute'] = [execute]
-        if settings['cmd'] != "":
-            for i in settings['cmd'].split(' '):
-                data['execute'].append(i)
-        ## Spawning
-        spawn           = True
-        if settings['spawn'] == 1:
-            data['pid'] = settings['pid']
-            spawn = False
-        ## Preparing block
-        data['maps']    = []
-        data['blocks']  = []
-        data['functions'] = bv.functions if addr == None else [addr]
-        stalker = FridaHandler(data,bv.file.original_filename,spawn,'stalk')
-        stalker.start()
-        bn.show_message_box('Frida running','Press OK button to terminate.')
-        stalker.cancel()
-        stalker.join()
-        colorize(data,colors[f_colors.result],bv)
 
-def start_dump(bv,funct):
+    if not ret:
+        return
+
+    execute = bv.file.original_filename
+    if settings['name'] != "":
+        execute = settings['name']
+
+    bn.log.log_info("Start '" + execute + ' ' + settings['cmd'] + "' on " + settings['dev'].id + ' device ')
+    data = {}
+
+    ## Set the device
+    data['device'] = settings['dev']
+
+    ## Command to spawn
+    data['execute'] = [execute]
+    if settings['cmd'] != "":
+        for i in settings['cmd'].split(' '):
+            data['execute'].append(i)
+
+    ## Spawning
+    spawn = True
+    if settings['spawn'] == 1:
+        data['pid'] = settings['pid']
+        spawn = False
+
+    ## Preparing block
+    data['maps'] = []
+    data['blocks'] = []
+    data['functions'] = bv.functions if addr == None else [addr]
+
+    stalker = FridaHandler(data, bv.file.original_filename, spawn, 'stalk')
+    stalker.start()
+
+    bn.show_message_box('Frida running', 'Press OK button to terminate.')
+
+    stalker.cancel()
+    stalker.join()
+
+    colorize(data, colors[f_colors.result], bv)
+
+def start_dump(bv, funct):
     extra_settings = []
-    index = 0
     for i in funct.parameter_vars:
-        f = bn.LabelField('\''+i.name+'\'')
-        extra_settings.append(f);
+        f = bn.LabelField("'" + i.name + "'")
+        extra_settings.append(f)
+
     extra_settings.append(bn.MultilineTextField('Dumping data. v_args[NAME] is printed in report'))
-    ret,settings    = SettingsGUI(bv,'Dump function contents',extra_settings)
-    if ret:
-        execute = bv.file.original_filename
-        if settings['name'] != "":
-            execute = settings['name']
-        bn.log.log_info('Start \''+execute+' '+settings['cmd']+'\' on '+settings['dev'].id+' device ')
-        data = {}
-        ## Set the device
-        data['device']  = settings['dev']
-        ## Command to spawn
-        data['execute'] = [execute]
-        if settings['cmd'] != "":
-            for i in settings['cmd'].split(' '):
-                data['execute'].append(i)
-        ## Spawning
-        spawn           = True
-        if settings['spawn'] == 1:
-            data['pid'] = settings['pid']
-            spawn = False
-        ## Preparing block
-        data['dump']    = []
-        data['maps']    = []
-        data['functions']   = funct
-        data['arguments']    = extra_settings[-1].result
-        stalker = FridaHandler(data,bv.file.original_filename,spawn,'dump')
-        stalker.start()
-        bn.show_message_box('Frida running','Press OK button to terminate.')
-        stalker.cancel()
-        stalker.join()
-        CreateMarkdownReport(bv,funct,data)
+    ret,settings = SettingsGUI(bv,'Dump function contents',extra_settings)
+    if not ret:
+        return
+
+    execute = bv.file.original_filename
+    if settings['name'] != "":
+        execute = settings['name']
+
+    bn.log.log_info("Start '" + execute + ' ' + settings['cmd'] + "' on " + settings['dev'].id + ' device ')
+    data = {}
+
+    ## Set the device
+    data['device'] = settings['dev']
+
+    ## Command to spawn
+    data['execute'] = [execute]
+    if settings['cmd'] != "":
+        for i in settings['cmd'].split(' '):
+            data['execute'].append(i)
+
+    ## Spawning
+    spawn = True
+    if settings['spawn'] == 1:
+        data['pid'] = settings['pid']
+        spawn = False
+
+    ## Preparing block
+    data['dump'] = []
+    data['maps'] = []
+    data['functions'] = funct
+    data['arguments'] = extra_settings[-1].result
+
+    stalker = FridaHandler(data,bv.file.original_filename,spawn,'dump')
+    stalker.start()
+
+    bn.show_message_box('Frida running','Press OK button to terminate.')
+
+    stalker.cancel()
+    stalker.join()
+
+    CreateMarkdownReport(bv, funct, data)
 
 def start_instrumentation(bv,address):
     ## TODO: Check the instrumented instruction. Frida has problem with some instruction
     f = bv.get_functions_containing(address)
-    f_function  = bn.LabelField('Container function\t'+ f[0].name)
-    f_funct     = bn.LabelField('Instrumented instruction\t'+bv.get_disassembly(address))
-    f_script    = bn.MultilineTextField("Frida script\t")
-    extra_settings = [f_function,f_funct,f_script]
-    ret,settings = SettingsGUI(bv,'Instrumentation',extra_settings)
-    if ret:
-        execute = bv.file.original_filename
-        if settings['name'] != "":
-            execute = settings['name']
-        bn.log.log_info('Start \''+execute+' '+settings['cmd']+'\' on '+settings['dev'].id+' device ')
-        data = {}
-        ## Set the device
-        data['device']  = settings['dev']
-        ## Command to spawn
-        data['execute'] = [execute]
-        if settings['cmd'] != "":
-            for i in settings['cmd'].split(' '):
-                data['execute'].append(i)
-        ## Spawning
-        spawn           = True
-        if settings['spawn'] == 1:
-            data['pid'] = settings['pid']
-            spawn = False
-        ## Stalker data
-        data['maps'] = []
-        data['functions'] = [f[0].start, address]
-        data['script'] = f_script.result
-        stalker = FridaHandler(data,bv.file.original_filename,spawn,'instr')
-        stalker.start()
-        bn.show_message_box('Frida running','Press OK button to terminate.')
-        stalker.cancel()
-        stalker.join()
+    f_function = bn.LabelField('Container function\t' + f[0].name)
+    f_funct = bn.LabelField('Instrumented instruction\t' + bv.get_disassembly(address))
+    f_script = bn.MultilineTextField("Frida script\t")
+
+    extra_settings = [f_function, f_funct, f_script]
+    ret,settings = SettingsGUI(bv, 'Instrumentation', extra_settings)
+
+    if not ret:
+        return
+
+    execute = bv.file.original_filename
+    if settings['name'] != "":
+        execute = settings['name']
+
+    bn.log.log_info("Start '" + execute + ' ' + settings['cmd'] + "' on " + settings['dev'].id + ' device ')
+    data = {}
+
+    ## Set the device
+    data['device'] = settings['dev']
+
+    ## Command to spawn
+    data['execute'] = [execute]
+    if settings['cmd'] != "":
+        for i in settings['cmd'].split(' '):
+            data['execute'].append(i)
+
+    ## Spawning
+    spawn = True
+    if settings['spawn'] == 1:
+        data['pid'] = settings['pid']
+        spawn = False
+
+    ## Stalker data
+    data['maps'] = []
+    data['functions'] = [f[0].start, address]
+    data['script'] = f_script.result
+
+    stalker = FridaHandler(data, bv.file.original_filename, spawn, 'instr')
+    stalker.start()
+
+    bn.show_message_box('Frida running', 'Press OK button to terminate.')
+
+    stalker.cancel()
+    stalker.join()
+
+LOG_SCRIPT = ""
+LOG_TAG_TYPE = "BinRida: Log function calls"
+def mark_log(bv: bn.BinaryView, func: bn.Function):
+    if not bv.get_tag_type(LOG_TAG_TYPE):
+        bv.create_tag_type(LOG_TAG_TYPE, "🪵")
+
+    func.add_tag("BinRida: Log function calls", "Log function calls", None, auto=True)
+    bn.log.log_info(f"Function {func.name} marked for logging", "BinRida")
+
+def _get_functions_by_tag(bv, tag):
+    return [f for f in bv.functions if f.get_function_tags(True, tag)]
+
+def start_frida(bv: bn.BinaryView):
+    ret, settings = SettingsGUI(bv, 'Instrumentation', [])
+
+    log_targets = _get_functions_by_tag(bv, LOG_TAG_TYPE)
+    bn.log.log_info(f"Logging the following functions: " + ",".join([f.name for f in log_targets]), "BinRida")
+
+    template = env.get_template("logger.js.j2")
+    print(template.render(targets=log_targets))

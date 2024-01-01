@@ -18,7 +18,7 @@
       "Linux"
    ],
    "installinstructions": {
-      "Linux": "`pip install psutil frida`"
+      "Linux": "`pip install psutil frida Jinja2`"
    },
    "version": "1.0",
    "minimumbinaryninjaversion": 1689
