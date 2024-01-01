@@ -58,7 +58,7 @@ def SettingsGUI(bv,action=None,extra_settings=None):
     if ret:
         SETTINGS['dev'] = devices[f_dev.result]
         SETTINGS['dev_id'] = f_dev.result
-        SETTINGS['name'] = f_appName.result
+        SETTINGS['name'] = f_appName.result.strip()
         SETTINGS['pid'] = int(pid[f_pid.result].split('(')[1][:-1])
         #  0 for spawn, 1 else
         SETTINGS['spawn'] = spawn.result
@@ -228,4 +228,36 @@ def start_frida(bv: bn.BinaryView):
     bn.log.log_info(f"Logging the following functions: " + ",".join([f.name for f in log_targets]), "BinRida")
 
     template = env.get_template("logger.js.j2")
-    print(template.render(targets=log_targets))
+    script = template.render(targets=log_targets, bv=bv)
+    # print(script)
+
+    data = {}
+    data["script"] = script
+    data["maps"] = []
+
+    ## Set the device
+    data['device'] = settings['dev']
+
+    execute = bv.file.original_filename
+    if settings['name'] != "":
+        execute = settings['name']
+
+    ## Command to spawn
+    data['execute'] = [execute]
+    if settings['cmd'] != "":
+        for i in settings['cmd'].split(' '):
+            data['execute'].append(i)
+
+    ## Spawning
+    spawn = True
+    if settings['spawn'] == 1:
+        data['pid'] = settings['pid']
+        spawn = False
+
+    stalker = FridaHandler(data, bv.file.original_filename, spawn, 'script')
+    stalker.start()
+
+    bn.show_message_box('Frida running','Press OK button to terminate.')
+
+    stalker.cancel()
+    stalker.join()

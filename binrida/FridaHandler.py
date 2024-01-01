@@ -27,8 +27,10 @@ import time
 import errno
 import os.path
 
+LOGGER = "BinRida:FridaHandler"
+
 class FridaHandler(bn.BackgroundTaskThread):
-    def __init__(self,data,bnFile,spawn,action):
+    def __init__(self, data, bnFile, spawn, action):
         bn.BackgroundTaskThread.__init__(self, "Frida running...", True)
         self.data       = data
         self.base       = 0
@@ -38,12 +40,6 @@ class FridaHandler(bn.BackgroundTaskThread):
         self.bnFile     = bnFile
         self.action     = action
         self.path = bn.user_plugin_path() + '/BinRida/binrida/'
-
-        if not os.path.isfile(self.path + 'm_stalker.js'):
-            self.path = bn.bundled_plugin_path() + '/BinRida/binrida/'
-            if not os.path.isfile(self.path + 'm_stalker.js'):
-                bn.log.log_error('Javascript code not found!')
-                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.path + 'm_stalker.js')
 
     ## Rebasing address
     def rebaser(self,i):
@@ -149,13 +145,27 @@ class FridaHandler(bn.BackgroundTaskThread):
         script = script.replace('//Change HERE',s_args)
         return script
 
-    def dump(self,message,payload):
+    def dump(self, message, payload):
         bn.log.log_info("data received!")
 
         try:
             self.data['dump'].append(message['payload'])
         except KeyError as e:
             bn.log.log_error('ERROR!  Dump message:\n'+str(message))
+
+    def script(self):
+        return self.data['script']
+
+    def scripted(self, message, payload):
+        if message["type"] == "error":
+            bn.log.log_error(message["stack"] + "\n\n" + "\n".join(message["description"].split("\\n")), LOGGER)
+            return
+        elif message["type"] == "send":
+            bn.log.log_info("\n".join(message["payload"].split("\\n")), LOGGER)
+            return
+
+        bn.log.log_info(message, LOGGER)
+        bn.log.log_info(payload, LOGGER)
 
     ## Find the mappings
     def mappings(self,message,payload):
@@ -206,20 +216,32 @@ class FridaHandler(bn.BackgroundTaskThread):
                 return
 
         ## Different function with different script
-        if self.action == 'stalk':
-            v_script = self.stalker()
-            callback = self.stalked
-        elif self.action == 'instr':
-            v_script = self.instrumentation()
-            callback = self.instr
-        elif self.action == 'dump':
-            v_script = self.dumper()
-            callback = self.dump
+        v_script = ""
+        callaback = None
+        if self.action == "script":
+            v_script = self.script()
+            callback = self.scripted
+        else:
+            if not os.path.isfile(self.path + 'm_stalker.js'):
+                self.path = bn.bundled_plugin_path() + '/BinRida/binrida/'
+                if not os.path.isfile(self.path + 'm_stalker.js'):
+                    bn.log.log_error('Javascript code not found!')
+                    raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.path + 'm_stalker.js')
 
-        bn.log.log_debug("Executed instrumentation script:\n"+v_script)
+            if self.action == 'stalk':
+                v_script = self.stalker()
+                callback = self.stalked
+            elif self.action == 'instr':
+                v_script = self.instrumentation()
+                callback = self.instr
+            elif self.action == 'dump':
+                v_script = self.dumper()
+                callback = self.dump
+
+        bn.log.log_debug("Executed custom script:\n" + v_script, LOGGER)
 
         script = process.create_script(v_script)
-        script.on('message',callback)
+        script.on('message', callback)
         script.load()
 
         if self.respawn:
@@ -234,4 +256,3 @@ class FridaHandler(bn.BackgroundTaskThread):
             self.data['device'].kill(pid)
         except frida.ProcessNotFoundError:
             bn.log.log_info('Process already finished')
-        return

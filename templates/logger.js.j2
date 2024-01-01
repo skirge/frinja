@@ -1,18 +1,19 @@
 {%- from "_macros.j2" import argparse_str -%}
 
 {%- for func in targets -%}
-const {{ func.name }}_ptr = new NativePointer({{ '%#x' % func.lowest_address }});
+const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
+const {{ func.name }}_ptr = new NativePointer({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {
-		console.log(`{{ func.name }}(
+		send(`{{ func.name }}(
 			{%- for param in func.type.parameters -%}
 				{%- set index = loop.index0 | string -%}
 				{{- argparse_str(param, "args[" + index + "]") -}},
-			{%- endfor -%})
-		`);
+			{%- endfor -%})`);
 	},
 	onLeave: function(retval) {
-		console.log(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {% endif %}`);
+		send(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {% endif %}`);
 	}
 });
 {% endfor %}
