@@ -27,33 +27,38 @@ import frida
 from .FridaHandler import FridaHandler
 from .output import *
 
+SETTINGS = {}
+
 def SettingsGUI(bv,action=None,extra_settings=None):
     ## Frida devices enumeration
     devices     = frida.enumerate_devices()
-    f_dev       = bn.ChoiceField('Device\t', [a.id for a in devices])
+    f_dev       = bn.ChoiceField('Device\t', [a.id for a in devices], SETTINGS['dev_id'] if 'dev_id' in SETTINGS.keys() else None)
     ## TODO:: TCP GUI
-    f_appName   = bn.TextLineField('Application\t')
-    cmdLine     = bn.TextLineField('Command line\t')
-    spawn       = bn.ChoiceField('Execution mode\t',['Spawn a new process', 'Attacch to PID'])
+    f_appName   = bn.TextLineField('Application\t', SETTINGS['name'] if 'name' in SETTINGS.keys() else None)
+    cmdLine     = bn.TextLineField('Command line\t', SETTINGS['cmd'] if 'cmd' in SETTINGS.keys() else None)
+    spawn       = bn.ChoiceField('Execution mode\t',['Spawn a new process', 'Attacch to PID'], SETTINGS['spawn'] if 'spawn' in SETTINGS.keys() else None)
     pid         = []
+
     ## I don't know if it is usefull or it is a problem... for example, remote attach
     for i in psutil.process_iter(attrs=['pid','name']):
         pid.append(i.info['name']+' ('+str(i.info['pid'])+')')
-    f_pid       = bn.ChoiceField('PID\t',pid)
+
+    f_pid       = bn.ChoiceField('PID\t', pid, SETTINGS['pid'] if 'pid' in SETTINGS.keys() else None)
     form        = [bn.LabelField('Frida general settings'), bn.SeparatorField(),f_dev,f_appName,cmdLine,spawn,f_pid]
     if extra_settings != None:
         form += [bn.SeparatorField(),bn.LabelField(action)] + extra_settings
     ret         = bn.interaction.get_form_input(form, 'BinRida')
     ## Global settings
-    settings = {}
+    #  settings = {}
     if ret:
-        settings['dev']  = devices[f_dev.result]
-        settings['name'] = f_appName.result
-        settings['pid']  = int(pid[f_pid.result].split('(')[1][:-1])
+        SETTINGS['dev']  = devices[f_dev.result]
+        SETTINGS['dev_id']  = f_dev.result
+        SETTINGS['name'] = f_appName.result
+        SETTINGS['pid']  = int(pid[f_pid.result].split('(')[1][:-1])
         #  0 for spawn, 1 else
-        settings['spawn']= spawn.result
-        settings['cmd']  = cmdLine.result
-    return ret,settings
+        SETTINGS['spawn']= spawn.result
+        SETTINGS['cmd']  = cmdLine.result
+    return ret,SETTINGS
 
 def start_stalking(bv,addr = None):
     colors      = [bn.HighlightStandardColor.BlueHighlightColor, bn.HighlightStandardColor.CyanHighlightColor, 	bn.HighlightStandardColor.GreenHighlightColor,bn.HighlightStandardColor.MagentaHighlightColor, bn.HighlightStandardColor.OrangeHighlightColor, bn.HighlightStandardColor.RedHighlightColor, bn.HighlightStandardColor.WhiteHighlightColor,bn.HighlightStandardColor.YellowHighlightColor]
