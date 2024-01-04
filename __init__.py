@@ -22,13 +22,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 '''
 import binaryninja as bn
-import BinRida.binrida as brida
-# import binrida as brida
-import sys
+from .settings import Settings
 
-bn.PluginCommand.register_for_function('BINRIDA: Stalk function execution', 'Stalk the basic block of this function', brida.start_stalking)
-bn.PluginCommand.register('BINRIDA: Stalk program execution', 'Stalk the process with Frida', brida.start_stalking)
-bn.PluginCommand.register_for_function('BINRIDA: Dump context of this function','Dump the context of this function with Frida', brida.start_dump)
-bn.PluginCommand.register_for_address('BINRIDA: Instrument this address','Instrument this address with Frida', brida.start_instrumentation)
-bn.PluginCommand.register_for_function('BINRIDA: Log function','Log function calls with arguments and return values', brida.mark_log)
-bn.PluginCommand.register('BINRIDA: Start Frida','Start the process and apply all the loggers/hookers', brida.start_frida)
+settings = Settings()
+bn.PluginCommand.register("Frinja Settings", "Set up Frinja to your liking", settings.show)

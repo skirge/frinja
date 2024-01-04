@@ -24,6 +24,7 @@ DEALINGS IN THE SOFTWARE.
 import binaryninja as bn
 import psutil
 import frida
+from .settings import *
 from .FridaHandler import FridaHandler
 from .output import *
 from jinja2 import Environment, FileSystemLoader, select_autoescape
