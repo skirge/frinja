@@ -1,37 +1,38 @@
 {%- from "_macros.j2" import argparse -%}
 
 {%- for func in targets -%}
+// {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
 const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
 const {{ func.name }}_ptr = new NativePointer({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
 
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {
-		send(`{{ func.name }}(
+		send(`{{ func.name }}@{{ "%#x" % func.start }}(
 			{%- for param in func.type.parameters -%}
 				{%- set index = loop.index0 | string -%}
 				{{ param.name }}: ${ {{- argparse(param, "args[" + index + "]") -}} },
 			{%- endfor -%})`);
 
-		{%- if "brida_prehook" in func.comment %}
-		{%- for param in func.type.parameters -%}
+		{%- if "binrida_prehook" in func.comment %}
+		{% for param in func.type.parameters %}
 			{%- set index = loop.index0 | string -%}
-			const {{ param.name }} = ${ {{- argparse(param, "args[" + index + "]") -}} };
-		{% endfor -%})`);
-		{{ func.comment.split("brida_prehook:")[1].split("\n")[0].strip() }}
-		{%- endif -%}
+			const {{ param.name }} = {{- argparse(param, "args[" + index + "]") -}};
+		{% endfor %}
+		{{ func.comment.split("binrida_prehook:")[1].split("\n")[0].strip() }};
+		{%- endif %}
 	},
 	onLeave: function(retval) {
-		{%- if "brida_return" in func.comment -%}
-		{%- set new_retval = func.comment.split("brida_return:")[1].split("\n")[0].strip() -%}
-		{%- endif -%}
-		send(`<- {{ func.name }}() {%- if func.can_return %} = ${retval} {%- endif %}{% if "brida_return" in func.comment %} ~> {{ new_retval }}{% endif %}`);
+		{%- if "binrida_return" in func.comment -%}
+		{%- set new_retval = func.comment.split("binrida_return:")[1].split("\n")[0].strip() -%}
+		{%- endif %}
+		send(`<- {{ func.name }}@{{ "%#x" % func.start }}() {%- if func.can_return %} = ${ {{- argparse(func.type.return_value, "retval") -}} } {%- endif %}{% if "binrida_return" in func.comment %} ~> {{ new_retval }}{% endif %}`);
 
-		{%- if "brida_posthook" in func.comment %}
-		{{ func.comment.split("brida_posthook:")[1].split("\n")[0].strip() }}
+		{%- if "binrida_posthook" in func.comment %}
+		{{ func.comment.split("binrida_posthook:")[1].split("\n")[0].strip() }}
 		{% endif -%}
-		{%- if "brida_return" in func.comment %}
+		{%- if "binrida_return" in func.comment %}
 		retval.replace({{ new_retval }})
-		{%- endif -%}
+		{%- endif %}
 	}
 });
 {% endfor %}

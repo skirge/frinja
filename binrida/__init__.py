@@ -219,16 +219,17 @@ def mark_log(bv: bn.BinaryView, func: bn.Function):
         func.add_tag(LOG_TAG_TYPE, "Log function calls", None)
         bn.log.log_info(f"Function {func.name} marked for logging", "BinRida")
 
-def _get_functions_by_tag(bv, tag):
-    return [f for f in bv.functions if f.get_function_tags(True, tag)]
+def _get_functions_by_tag(bv: bn.BinaryView, tag: str):
+    return [f for f in bv.functions if f.get_function_tags(False, tag)]
 
 def start_frida(bv: bn.BinaryView):
-    ret, settings = SettingsGUI(bv, 'Instrumentation', [])
+    ret, settings = SettingsGUI(bv, 'Start Execution', [])
 
     log_targets = _get_functions_by_tag(bv, LOG_TAG_TYPE)
     bn.log.log_info(f"Logging the following functions: " + ",".join([f.name for f in log_targets]), "BinRida")
     template = env.get_template("logger.js.j2")
     script = template.render(targets=log_targets, bv=bv)
+    print("\n".join([f"{i}: {l}" for i, l in enumerate(script.split("\n"))]))
 
     data = {}
     data["script"] = script

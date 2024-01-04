@@ -1,42 +1,82 @@
 {% macro argparse(param, var) -%}
-	{%- set type = param.type.__str__() -%}
+	{%- set type = param.type.__str__() if "type" in param.__dict__ else param.__str__() -%}
+
+	{%- for _ in range(1, type.count("**")) if "**" in type -%}
+		{%- set var = var + ".readPointer()" -%}
+		{%- set type = type[:-1] -%}
+	{%- endfor -%}
+
 	{%- if type == "char*" -%}
-		{{- var }}.readAnsiString()
+		{{ var }}.readAnsiString()
 	{%- elif type == "wchar_t*" -%}
-		{{- var }}.readUtf16String()
+		{{ var }}.readUtf16String()
 	{%- elif type == "int" -%}
-		{{- var }}.readInt()
+		{{ var }}.readInt()
 	{%- elif type == "uint" -%}
-		{{- var }}.readUInt()
+		{{ var }}.readUInt()
 	{%- elif type == "float" -%}
-		{{- var }}.readFloat()
+		{{ var }}.readFloat()
 	{%- elif type == "double" -%}
-		{{- var }}.readDouble()
+		{{ var }}.readDouble()
 	{%- elif type == "bool" -%}
-		{{- var }}.readU8()
+		{{ var }}.readU8()
 	{%- elif type == "char" -%}
-		{{- var }}.readU8()
+		{{ var }}.readU8()
 	{%- elif type == "wchar_t" -%}
-		{{- var }}.readU16()
+		{{ var }}.readU16()
 	{%- elif type == "int8_t" -%}
-		{{- var }}.readS8()
+		{{ var }}.toInt32()
 	{%- elif type == "uint8_t" -%}
-		{{- var }}.readU8()
+		{{ var }}.toInt32()
 	{%- elif type == "int16_t" -%}
-		{{- var }}.readS16()
+		{{ var }}.toInt32()
 	{%- elif type == "uint16_t" -%}
-		{{- var }}.readU16()
+		{{ var }}.toInt32()
 	{%- elif type == "int32_t" -%}
-		{{- var }}.readS32()
+		{{ var }}.toInt32()
 	{%- elif type == "uint32_t" -%}
-		{{- var }}.readU32()
+		{{ var }}.toInt32()
 	{%- elif type == "int64_t" -%}
-		{{- var }}.readS64()
+		{{ var }}.toInt32()
 	{%- elif type == "uint64_t" -%}
-		{{- var }}.readU64()
+		{{ var }}.toInt32()
 	{%- elif type == "size_t" -%}
-		{{- var }}.readU64()
+		{{ var }}.toInt32()
+	{%- elif type == "int*" -%}
+		{{ var }}.readInt()
+	{%- elif type == "uint*" -%}
+		{{ var }}.readUInt()
+	{%- elif type == "float*" -%}
+		{{ var }}.readFloat()
+	{%- elif type == "double*" -%}
+		{{ var }}.readDouble()
+	{%- elif type == "bool*" -%}
+		{{ var }}.readU8()
+	{%- elif type == "char*" -%}
+		{{ var }}.readU8()
+	{%- elif type == "wchar_t*" -%}
+		{{ var }}.readU16()
+	{%- elif type == "int8_t*" -%}
+		{{ var }}.readS8()
+	{%- elif type == "uint8_t*" -%}
+		{{ var }}.readU8()
+	{%- elif type == "int16_t*" -%}
+		{{ var }}.readS16()
+	{%- elif type == "uint16_t*" -%}
+		{{ var }}.readU16()
+	{%- elif type == "int32_t*" -%}
+		{{ var }}.readS32()
+	{%- elif type == "uint32_t*" -%}
+		{{ var }}.readU32()
+	{%- elif type == "int64_t*" -%}
+		{{ var }}.readS64()
+	{%- elif type == "uint64_t*" -%}
+		{{ var }}.readU64()
+	{%- elif type == "size_t*" -%}
+		{{ var }}.readU64()
 	{%- elif type.endswith("*") -%}
-		{{- var }}.readPointer()
+		{{ var }}.readPointer()
+	{%- else -%}
+		{{ var }}
 	{%- endif -%}
 {%- endmacro %}
