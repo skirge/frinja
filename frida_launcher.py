@@ -25,6 +25,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	def from_template(settings: Settings, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
 		template = jinja.get_template(template)
 		script = template.render(**kwargs)
+		print(script)
 		return FridaLauncher(settings, script, callback=callback)
 
 	def run(self):
@@ -47,13 +48,17 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			info("Session ended")
 			self.cancel()
 
+		def on_message(msg, data):
+			debug("received:", msg, data)
+			if self.callback:
+				self.callback(msg, data)
+
 		info(f"Attaching to {pid}")
 		session = self.settings.device.attach(pid)
 		script = session.create_script(self.script)
-		script.on("destroyed", on_destroyed)
 
-		if self.callback:
-			script.on("message", self.callback)
+		script.on("destroyed", on_destroyed)
+		script.on("message", on_message)
 
 		info("Loading script")
 		debug(self.script)
