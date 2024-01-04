@@ -3,7 +3,7 @@
 {%- for func in targets -%}
 // {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
 const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
-const {{ func.name }}_ptr = new NativePointer({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
 
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {

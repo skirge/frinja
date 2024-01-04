@@ -1,9 +1,11 @@
 // {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
 const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
-const {{ func.name }}_ptr = new NativePointer({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
 const basic_blocks = [
 	{% for bb in func.basic_blocks -%}
+		{%- if loop.index != 1 -%}
 		{{ func.name }}_module.add({{ "%#x" % (bb.start - bv.start) }}),
+		{%- endif %}
 	{% endfor %}
 ];
 
@@ -11,31 +13,28 @@ let hooked_blocks = {}
 
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {
-		var size;
-		var addr;
-		var ret_pointer;
-		var writer;
-
-		for (const block in basic_blocks) {
+		for (const block of basic_blocks) {
 			const instr = Instruction.parse(block)
 			const page = Memory.alloc(Process.pageSize);
+			const return_ptr = block.add(1)
 
 			hooked_blocks[block] = page;
-			return_ptr = block.add(1)
 
 			// Move the code to the new memory page
 			Memory.patchCode(page, 64, code => {
-				var writer = new X86Writer(code, { pc: code });
-				var relocator = new X86Relocator(block, writer);
+				const writer = new X86Writer(code, { pc: code });
+				const relocator = new X86Relocator(block, writer);
+
 				relocator.readOne();
 				relocator.writeOne();
+
 				writer.putJmpAddress(return_ptr);
 				writer.flush();
 			});
 
 			// Add a breakpoint to the original code
 			Memory.patchCode(block, 64, function(code) {
-				writer = new X86Writer(code, {pc: code})
+				const writer = new X86Writer(code, {pc: code})
 				writer.putBreakpoint();
 				writer.putNopPadding(instr.size - 1);
 			});
@@ -43,10 +42,12 @@ Interceptor.attach({{ func.name }}_ptr, {
 	}
 });
 
-Process.setExceptionHandler(function(args){
-	if(args.type === 'breakpoint'){
+Process.setExceptionHandler(args => {
+	if(args.type === "breakpoint"){
+		// Send the basic block offset to the python script as we don't know the module base address
 		send(args.address.sub({{ func.name }}_module));
-		args.context['pc'] = hooked_blocks[args.address.sub(1)];
+
+		args.context["pc"] = hooked_blocks[args.address];
 		return true;
 	}
 

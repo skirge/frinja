@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 import binaryninja as bn
 import frida
 
@@ -20,12 +20,10 @@ def needs_settings(func: Callable):
 		return inner
 	return wrapper
 
-def message_handler(func: Callable[[Settings, bn.BinaryView, str], None]):
+def message_handler(func: Callable):
 	def wrapper(*args, **kwargs):
-		def inner(msg, data):
-		# def inner(msg: frida.core.ScriptMessage, data: bytes):
+		def inner(msg: frida.core.ScriptMessage, data: Optional[bytes]):
 			# TODO: What to do with the data?
-			debug(msg, data)
 			if msg["type"] == "error":
 				if msg["stack"]:
 					error(msg["stack"])
@@ -33,7 +31,7 @@ def message_handler(func: Callable[[Settings, bn.BinaryView, str], None]):
 				error("\n".join(msg["description"].split("\\n")))
 				return
 
-			func(msg["payload"], *args, **kwargs)
+			func(msg["payload"], data, *args, **kwargs)
 		return inner
 	return wrapper
 
@@ -54,19 +52,20 @@ def frida_start(settings: Settings, bv: bn.BinaryView):
 	frida_launcher.start()
 
 @message_handler
-def on_frida_start(settings: Settings, bv: bn.BinaryView, msg: str):
+def on_frida_start(msg: str, data: Optional[bytes]):
+	print(msg)
 	info(msg)
 
 # Function Inspector
 @needs_settings
 def function_inspector(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 	info(f"Launching function inspector for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, "function_inspector.js.j2", on_function_inspector(bv), bv=bv, func=func)
+	frida_launcher = FridaLauncher.from_template(settings, "function_inspector.js.j2", on_function_inspector(bv, func), bv=bv, func=func)
 	frida_launcher.start()
 
 @message_handler
-def on_function_inspector(msg: str, bv: bn.BinaryView):
+def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
 	addr = bv.start + int(msg, 16)
-	for block in bv.get_basic_blocks_at(addr):
-		block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
-		debug("Highlighting block", block)
+	block = func.get_basic_block_at(addr)
+	debug(f"Highlighting block {block}")
+	block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)

@@ -25,7 +25,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	def from_template(settings: Settings, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
 		template = jinja.get_template(template)
 		script = template.render(**kwargs)
-		print(script)
+		print("\n".join([f"{i + 1}: {l}" for i, l in enumerate(script.split("\n"))]))
 		return FridaLauncher(settings, script, callback=callback)
 
 	def run(self):
@@ -49,7 +49,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			self.cancel()
 
 		def on_message(msg, data):
-			debug("received:", msg, data)
+			debug(f"Message received: {msg} {data}")
 			if self.callback:
 				self.callback(msg, data)
 
@@ -77,5 +77,8 @@ class FridaLauncher(bn.BackgroundTaskThread):
 
 		try:
 			self.settings.device.kill(pid)
+			info("Process killed")
 		except frida.ProcessNotFoundError:
-			info('Process already finished')
+			info("Process already finished")
+
+		# self.join()
