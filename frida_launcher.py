@@ -16,7 +16,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	callback: Optional[frida.core.ScriptMessageCallback]
 
 	def __init__(self, settings: Settings, script: str, callback: Optional[frida.core.ScriptMessageCallback] = None):
-		super().__init__("Frinja initializing", True)
+		super().__init__("Frinja running", True)
 		self.script = script
 		self.settings = settings
 		self.callback = callback
@@ -34,8 +34,8 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		pid = 0
 		if self.settings.exec_action == ExecutionAction.SPAWN:
 			# TODO: Allow tinkering with the env, stdio and cwd
-			pid = self.settings.device.spawn(self.settings.file_target, self.settings.cmdline)
-			log(f"Spawned {self.settings.file_target} with arguments `{self.settings.cmdline}` that got PID {pid}")
+			pid = self.settings.device.spawn(self.settings.file_target, self.settings.cmdline.split(" "))
+			info(f"Spawned {self.settings.file_target} with arguments `{self.settings.cmdline}` that got PID {pid}")
 		elif self.settings.exec_action == ExecutionAction.ATTACH_NAME:
 			pid = self.settings.attach_name
 		elif self.settings.exec_action == ExecutionAction.ATTACH_PID:
@@ -44,10 +44,10 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			alert("Frinja: Unknown execution action")
 
 		def on_destroyed():
-			log("Session destroyed from the remote")
+			info("Session ended")
 			self.cancel()
 
-		log(f"Attaching to {pid}")
+		info(f"Attaching to {pid}")
 		session = self.settings.device.attach(pid)
 		script = session.create_script(self.script)
 		script.on("destroyed", on_destroyed)
@@ -55,9 +55,12 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		if self.callback:
 			script.on("message", self.callback)
 
-		log("Loading script")
+		info("Loading script")
 		debug(self.script)
 		script.load()
+
+		if self.settings.exec_action == ExecutionAction.SPAWN:
+			self.settings.device.resume(pid)
 
 		while True:
 			if self.cancelled or self.finished:
@@ -70,4 +73,4 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		try:
 			self.settings.device.kill(pid)
 		except frida.ProcessNotFoundError:
-			bn.log.log_info('Process already finished')
+			info('Process already finished')

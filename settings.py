@@ -6,6 +6,9 @@ import binaryninja as bn
 import frida
 from .log import *
 
+HOOK_TAG_TYPE = "Frinja Hooked"
+HOOK_TAG_TYPE_ICON = "🪝"
+
 
 class ExecutionAction(Enum):
 	SPAWN = 0
@@ -31,6 +34,8 @@ class Settings():
 		pass
 
 	def show(self, bv: BinaryView):
+		self.restore(bv)
+
 		devices = frida.enumerate_devices()
 
 		device_ui = bn.ChoiceField("Device", [d.name for d in devices], [d.id for d in devices].index(self.device.id) if self.device is not None else None)
