@@ -2,11 +2,11 @@
 {{ function_header(bv, func) }}
 let index = 0;
 
-const {{ func.name }}_intercept = Interceptor.attach({{ func.name }}_ptr, {
+Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: args => {
-		if (index > 20) {
+		if (index > 5) {
 			Interceptor.detachAll();
-			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${index}), detaching all intercepts`);
+			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${index - 1}), detaching all intercepts`);
 		}
 
 		this.index = index;
