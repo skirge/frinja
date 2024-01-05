@@ -26,7 +26,7 @@ from .settings import Settings
 from .actions import *
 
 settings = Settings()
-bn.PluginCommand.register("Frinja\Settings", "Set up Frinja to your liking", settings.show)
+bn.PluginCommand.register("\Frinja\Settings", "Set up Frinja to your liking", settings.show)
 bn.PluginCommand.register_for_function("Frinja\Hook Function", "Mark function for hooking during run", mark_hooked)
 bn.PluginCommand.register("Frinja\Run Hooker", "Start frida with the given settings and the hooker script", frida_start(settings))
 bn.PluginCommand.register_for_function("Frinja\Inspect Function Paths", "Highlight the code paths that the functions takes", function_inspector(settings))

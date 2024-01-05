@@ -2,14 +2,19 @@
 {{ function_header(bv, func) }}
 let index = 0;
 
-Interceptor.attach({{ func.name }}_ptr, {
+const {{ func.name }}_intercept = Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: args => {
+		if (index > 20) {
+			Interceptor.detachAll();
+			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${index}), detaching all intercepts`);
+		}
+
 		this.index = index;
 		send({
-			"context": this.context,
-			"return": this.returnAddress,
-			"depth": this.depth,
-			"thread_id": this.threadId,
+			"context": this.context ? this.context : {},
+			"return": this.returnAddress ? this.returnAddress : 0,
+			"depth": this.depth ? this.depth : -1,
+			"thread_id": this.threadId ? this.threadId : -1,
 			"ranges": Process.enumerateRanges('---'),
 			"index": index++,
 			"args": {
@@ -20,10 +25,10 @@ Interceptor.attach({{ func.name }}_ptr, {
 			}
 		})
 	},
-	onLeave: result => {
+	onLeave: retval => {
 		send({
-			"context": this.context,
-			"retval": result,
+			"context": this.context ? this.context : {},
+			"retval": retval ? retval : "",
 			"index": this.index,
 			"ranges": Process.enumerateRanges('---'),
 		})

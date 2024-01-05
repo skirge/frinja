@@ -1,6 +1,6 @@
 # Function Dump report for {{ func.name }}
 
-{% for frame in dump -%}
+{% for frame in data -%}
 {%- if "args" in frame.keys() -%}
 ## Function Call {{ frame["index"] }}
 
@@ -17,6 +17,7 @@
 - Return Value: {{ frame["retval"] }}
 {%- endif %}
 
+
 ### Context
 
 | Register | Value | Maps to |
@@ -25,10 +26,11 @@
 | `{{ key }}` | **{{ value }}** | {{ data.registers[key] }} |
 {% endfor %}
 
+
 ### Memory Map
-| Path | Start | End | Protextion |
+| Path | Start | Size | Protection |
 |------|-------|-----|------------|
-{%- for range in frame["ranges"] %}
-| **{{ range["file"]["path"] }}** | {{ range["base"] }} | `{{ "%#x" % ( range["base"] + range["size"] ) }}` | **{{ range["protection"] }}** |
+{% for range in frame["ranges"] -%}
+| {{ "**" + range["file"]["path"] + "**" if "file" in range.keys() else "" }} | {{ range["base"] }} | `{{ range["size"] }}` | **{{ range["protection"] }}** |
 {% endfor %}
 {% endfor %}

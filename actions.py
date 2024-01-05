@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+from threading import Thread
 import binaryninja as bn
 import frida
 import json
@@ -36,6 +37,7 @@ def message_handler(func: Callable):
 		return inner
 	return wrapper
 
+@alert_on_error
 def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 	# NOTE: Maybe rely on id instead of name?
 	if not bv.get_tag_type(HOOK_TAG_TYPE):
@@ -58,6 +60,7 @@ def on_frida_start(msg: str, data: Optional[bytes]):
 	info(msg)
 
 # Function Inspector
+@alert_on_error
 @needs_settings
 def function_inspector(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 	info(f"Launching function inspector for {func.name}@{func.start}")
@@ -72,22 +75,26 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 	block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
 
 # Function Dumper
-__DUMP__ = []
+@alert_on_error
 @needs_settings
 def function_dumper(settings: Settings, bv: bn.BinaryView, func: bn.Function):
-	__DUMP__.clear()
+	dump_data = []
 	info(f"Launching function dumper for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, "function_dumper.js.j2", on_function_dumper(bv, func), bv=bv, func=func)
+	frida_launcher = FridaLauncher.from_template(settings, "function_dumper.js.j2", on_function_dumper(bv, func, dump_data), bv=bv, func=func)
 	frida_launcher.start()
 
-	frida_launcher.join()
-	info("Dumping complete - generating report")
-	info(__DUMP__)
+	def reporter():
+		frida_launcher.join()
+		info("Dumping complete - generating report")
+		template = jinja.get_template("function_dumper_report.md.j2")
+		report = template.render(bv=bv, func=func, data=dump_data)
+		bv.show_markdown_report(f"{func.name} Dump", report)
 
-	template = jinja.get_template("function_dumper_report.md.j2")
-	report = template.render(bv=bv, func=func, data=__DUMP__)
-	bv.show_markdown_report(f"{func.name} Dump", report)
+	t = Thread(target=reporter)
+	t.daemon = True
+	t.start()
+
 
 @message_handler
-def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
-	__DUMP__.append(msg)
+def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: list):
+	dump_data.append(msg)

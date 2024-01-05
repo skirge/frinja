@@ -6,8 +6,8 @@ from .settings import ExecutionAction, Settings
 from .log import *
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 jinja = Environment(
-    loader=FileSystemLoader(bn.user_plugin_path() + "/frinja/templates"),
-    autoescape=select_autoescape()
+	loader=FileSystemLoader(bn.user_plugin_path() + "/frinja/templates"),
+	autoescape=select_autoescape()
 )
 
 class FridaLauncher(bn.BackgroundTaskThread):
@@ -16,7 +16,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	callback: Optional[frida.core.ScriptMessageCallback]
 
 	def __init__(self, settings: Settings, script: str, callback: Optional[frida.core.ScriptMessageCallback] = None):
-		super().__init__("Frinja running", True)
+		super().__init__("Frinja initializing", True)
 		self.script = script
 		self.settings = settings
 		self.callback = callback
@@ -28,6 +28,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		print("\n".join([f"{i + 1}: {l}" for i, l in enumerate(script.split("\n"))]))
 		return FridaLauncher(settings, script, callback=callback)
 
+	@alert_on_error
 	def run(self):
 		if self.settings.device is None:
 			alert("Please select a device from the settings")
@@ -46,7 +47,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 
 		def on_destroyed():
 			info("Session ended")
-			self.cancel()
+			self.finish()
 
 		def on_message(msg, data):
 			debug(f"Message received: {msg} {data}")
@@ -67,6 +68,8 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		if self.settings.exec_action == ExecutionAction.SPAWN:
 			self.settings.device.resume(pid)
 
+		self.progress = "Frinja running..."
+
 		while True:
 			if self.cancelled or self.finished:
 				break
@@ -80,5 +83,3 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			info("Process killed")
 		except frida.ProcessNotFoundError:
 			info("Process already finished")
-
-		# self.join()
