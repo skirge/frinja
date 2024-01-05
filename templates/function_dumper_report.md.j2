@@ -1,0 +1,34 @@
+# Function Dump report for {{ func.name }}
+
+{% for frame in dump -%}
+{%- if "args" in frame.keys() -%}
+## Function Call {{ frame["index"] }}
+
+- Depth: {{ data.depth }}
+- Callee: {{ "%#x" % (bv.start + frame["return"]) }}
+- Thread ID: {{ frame["thread_id"] }}
+- Arguments:
+{%- for key, value in frame["args"].items() %}
+  - {{ key }}: {{ value }}
+{%- endfor %}
+{%- else -%}
+## Function Return {{ frame["index"] }}
+
+- Return Value: {{ frame["retval"] }}
+{%- endif %}
+
+### Context
+
+| Register | Value | Maps to |
+|----------|-------|---------|
+{%- for key, value in frame["context"].items() %}
+| `{{ key }}` | **{{ value }}** | {{ data.registers[key] }} |
+{% endfor %}
+
+### Memory Map
+| Path | Start | End | Protextion |
+|------|-------|-----|------------|
+{%- for range in frame["ranges"] %}
+| **{{ range["file"]["path"] }}** | {{ range["base"] }} | `{{ "%#x" % ( range["base"] + range["size"] ) }}` | **{{ range["protection"] }}** |
+{% endfor %}
+{% endfor %}

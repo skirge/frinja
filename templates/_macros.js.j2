@@ -1,3 +1,9 @@
+{% macro function_header(bv, func) %}
+// {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
+const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
+const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+{% endmacro %}
+
 {% macro argparse(param, var) -%}
 	{%- set type = param.type.__str__() if "type" in param.__dict__ else param.__str__() -%}
 

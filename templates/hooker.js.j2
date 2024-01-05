@@ -1,20 +1,18 @@
-{%- from "_macros.j2" import argparse -%}
+{%- from "_macros.js.j2" import argparse, function_header -%}
 
 {%- for func in targets -%}
-// {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
-const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
-const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+{{ function_header(bv, func) }}
 
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {
 		send(`{{ func.name }}@{{ "%#x" % func.start }}(
-			{%- for param in func.type.parameters -%}
+			{%- for param in func.parameter_vars -%}
 				{%- set index = loop.index0 | string -%}
 				{{ param.name }}: ${ {{- argparse(param, "args[" + index + "]") -}} },
 			{%- endfor -%})`);
 
 		{%- if "frinja_prehook" in func.comment %}
-		{% for param in func.type.parameters %}
+		{% for param in func.parameter_vars %}
 			{%- set index = loop.index0 | string -%}
 			const {{ param.name }} = {{- argparse(param, "args[" + index + "]") -}};
 		{% endfor %}

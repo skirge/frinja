@@ -1,6 +1,5 @@
-// {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
-const {{ func.name }}_module = Process.getModuleByName("{{ func.view.file.original_filename.split("/") | last }}").base;
-const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+{%- from "_macros.js.j2" import function_header -%}
+{{ function_header(bv, func) }}
 const basic_blocks = [
 	{% for bb in func.basic_blocks -%}
 		{%- if loop.index != 1 -%}

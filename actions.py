@@ -1,8 +1,9 @@
 from typing import Callable, Optional
 import binaryninja as bn
 import frida
+import json
 
-from .frida_launcher import FridaLauncher
+from .frida_launcher import FridaLauncher, jinja
 from .log import *
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON, Settings
 
@@ -69,3 +70,24 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 	block = func.get_basic_block_at(addr)
 	debug(f"Highlighting block {block}")
 	block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
+
+# Function Dumper
+__DUMP__ = []
+@needs_settings
+def function_dumper(settings: Settings, bv: bn.BinaryView, func: bn.Function):
+	__DUMP__.clear()
+	info(f"Launching function dumper for {func.name}@{func.start}")
+	frida_launcher = FridaLauncher.from_template(settings, "function_dumper.js.j2", on_function_dumper(bv, func), bv=bv, func=func)
+	frida_launcher.start()
+
+	frida_launcher.join()
+	info("Dumping complete - generating report")
+	info(__DUMP__)
+
+	template = jinja.get_template("function_dumper_report.md.j2")
+	report = template.render(bv=bv, func=func, data=__DUMP__)
+	bv.show_markdown_report(f"{func.name} Dump", report)
+
+@message_handler
+def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
+	__DUMP__.append(msg)

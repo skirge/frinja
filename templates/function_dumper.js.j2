@@ -1,0 +1,31 @@
+{%- from "_macros.js.j2" import argparse, function_header -%}
+{{ function_header(bv, func) }}
+let index = 0;
+
+Interceptor.attach({{ func.name }}_ptr, {
+	onEnter: args => {
+		this.index = index;
+		send({
+			"context": this.context,
+			"return": this.returnAddress,
+			"depth": this.depth,
+			"thread_id": this.threadId,
+			"ranges": Process.enumerateRanges('---'),
+			"index": index++,
+			"args": {
+				{% for param in func.parameter_vars -%}
+					{%- set index = loop.index0 | string -%}
+					"{{ param.name }}": {{- argparse(param, "args[" + index + "]") -}},
+				{% endfor %}
+			}
+		})
+	},
+	onLeave: result => {
+		send({
+			"context": this.context,
+			"retval": result,
+			"index": this.index,
+			"ranges": Process.enumerateRanges('---'),
+		})
+	}
+});
