@@ -3,19 +3,18 @@
 let index = 0;
 
 Interceptor.attach({{ func.name }}_ptr, {
-	onEnter: args => {
-		if (index > 5) {
+	onEnter(args) {
+		if (index > 50) {
 			Interceptor.detachAll();
 			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${index - 1}), detaching all intercepts`);
 		}
 
 		this.index = index;
 		send({
-			"context": this.context ? this.context : {},
-			"return": this.returnAddress ? this.returnAddress : 0,
-			"depth": this.depth ? this.depth : -1,
-			"thread_id": this.threadId ? this.threadId : -1,
-			"ranges": Process.enumerateRanges('---'),
+			"context": this.context,
+			"return": this.returnAddress.sub({{ func.name }}_module),
+			"depth": this.depth,
+			"thread_id": this.threadId,
 			"index": index++,
 			"args": {
 				{% for param in func.parameter_vars -%}
@@ -25,12 +24,11 @@ Interceptor.attach({{ func.name }}_ptr, {
 			}
 		})
 	},
-	onLeave: retval => {
+	onLeave(retval) {
 		send({
 			"context": this.context ? this.context : {},
 			"retval": retval ? retval : "",
 			"index": this.index,
-			"ranges": Process.enumerateRanges('---'),
 		})
 	}
 });

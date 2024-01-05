@@ -20,17 +20,10 @@
 
 ### Context
 
-| Register | Value | Maps to |
-|----------|-------|---------|
+| Register | Value |
+|----------|-------|
 {%- for key, value in frame["context"].items() %}
-| `{{ key }}` | **{{ value }}** | {{ data.registers[key] }} |
-{% endfor %}
-
-
-### Memory Map
-| Path | Start | Size | Protection |
-|------|-------|-----|------------|
-{% for range in frame["ranges"] -%}
-| {{ "**" + range["file"]["path"] + "**" if "file" in range.keys() else "" }} | {{ range["base"] }} | `{{ range["size"] }}` | **{{ range["protection"] }}** |
-{% endfor %}
+| `{{ key }}` | **{{ value }}** |
+{%- endfor %}
+---
 {% endfor %}

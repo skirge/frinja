@@ -97,4 +97,6 @@ def function_dumper(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 
 @message_handler
 def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: list):
+	if "return" in msg:
+		msg["return"] = int(msg["return"], 16)
 	dump_data.append(msg)
