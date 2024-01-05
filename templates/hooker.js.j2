@@ -11,24 +11,24 @@ Interceptor.attach({{ func.name }}_ptr, {
 				{{ param.name }}: ${ {{- argparse(param, "args[" + index + "]") -}} },
 			{%- endfor -%})`);
 
-		{%- if "frinja_prehook" in func.comment %}
+		{%- if "@prehook" in func.comment %}
 		{% for param in func.parameter_vars %}
 			{%- set index = loop.index0 | string -%}
 			const {{ param.name }} = {{- argparse(param, "args[" + index + "]") -}};
 		{% endfor %}
-		{{ func.comment.split("frinja_prehook:")[1].split("\n")[0].strip() }};
+		{{ func.comment.split("@prehook:")[1].split("\n")[0].strip() }};
 		{%- endif %}
 	},
 	onLeave: function(retval) {
-		{%- if "frinja_return" in func.comment -%}
-		{%- set new_retval = func.comment.split("frinja_return:")[1].split("\n")[0].strip() -%}
+		{%- if "@ret" in func.comment -%}
+		{%- set new_retval = func.comment.split("@ret:")[1].split("\n")[0].strip() -%}
 		{%- endif %}
-		send(`<- {{ func.name }}@{{ "%#x" % func.start }}() {%- if func.can_return %} = ${ {{- argparse(func.type.return_value, "retval") -}} } {%- endif %}{% if "frinja_return" in func.comment %} ~> {{ new_retval }}{% endif %}`);
+		send(`<- {{ func.name }}@{{ "%#x" % func.start }}() {%- if func.can_return %} = ${ {{- argparse(func.type.return_value, "retval") -}} } {%- endif %}{% if "@ret" in func.comment %} ~> {{ new_retval }}{% endif %}`);
 
-		{%- if "frinja_posthook" in func.comment %}
-		{{ func.comment.split("frinja_posthook:")[1].split("\n")[0].strip() }}
+		{%- if "@posthook" in func.comment %}
+		{{ func.comment.split("@posthook:")[1].split("\n")[0].strip() }}
 		{% endif -%}
-		{%- if "frinja_return" in func.comment %}
+		{%- if "@ret" in func.comment %}
 		retval.replace({{ new_retval }})
 		{%- endif %}
 	}

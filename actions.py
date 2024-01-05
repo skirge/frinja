@@ -38,6 +38,10 @@ def message_handler(func: Callable):
 	return wrapper
 
 @alert_on_error
+def show_help(bv: bn.BinaryView):
+	bv.show_markdown_report("Frinja Help", open(bn.user_plugin_path() + "/frinja/README.md").read())
+
+@alert_on_error
 def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 	# NOTE: Maybe rely on id instead of name?
 	if not bv.get_tag_type(HOOK_TAG_TYPE):
