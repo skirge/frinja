@@ -22,8 +22,10 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 '''
 import binaryninja as bn
-from .settings import Settings
+import binaryninjaui as ui
 from .actions import *
+from .console import CONSOLE
+from .settings import Settings
 
 settings = Settings()
 bn.PluginCommand.register("Frinja\Settings", "Set up Frinja to your liking", settings.show)
@@ -32,3 +34,5 @@ bn.PluginCommand.register_for_function("Frinja\Hook Function", "Mark function fo
 bn.PluginCommand.register("Frinja\Run Hooker", "Start frida with the given settings and the hooker script", frida_start(settings))
 bn.PluginCommand.register_for_function("Frinja\Inspect Function Paths", "Highlight the code paths that the functions takes", function_inspector(settings))
 bn.PluginCommand.register_for_function("Frinja\Dump Function Context", "Create a report of all the function calls and returns", function_dumper(settings))
+
+ui.GlobalArea.addWidget(lambda _: CONSOLE)

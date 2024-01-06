@@ -2,7 +2,6 @@ from typing import Callable, Optional
 from threading import Thread
 import binaryninja as bn
 import frida
-import json
 
 from .frida_launcher import FridaLauncher, jinja
 from .log import *

@@ -1,7 +1,8 @@
 import time
-from typing import Callable, Dict, Optional
+from typing import Any, Mapping, Optional, Tuple, Union
 import frida
 import binaryninja as bn
+from .console import CONSOLE
 from .settings import ExecutionAction, Settings
 from .log import *
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -45,8 +46,14 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		else:
 			alert("Frinja: Unknown execution action")
 
+		def on_detached(reason):
+			CONSOLE.session_end()
+			info(f"Script detached: {reason}")
+			self.finish()
+
 		def on_destroyed():
-			info("Session ended")
+			CONSOLE.session_end()
+			info("Script destroyed")
 			self.finish()
 
 		def on_message(msg, data):
@@ -55,8 +62,12 @@ class FridaLauncher(bn.BackgroundTaskThread):
 				self.callback(msg, data)
 
 		info(f"Attaching to {pid}")
+
 		session = self.settings.device.attach(pid)
-		script = session.create_script(self.script)
+		session.on("detached", on_detached)
+
+		script = session.create_script(self.script + "\n\n" + open(bn.user_plugin_path() + "/frinja/templates/repl.js").read())
+		script.set_log_handler(CONSOLE.handle_log)
 
 		script.on("destroyed", on_destroyed)
 		script.on("message", on_message)
@@ -69,6 +80,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			self.settings.device.resume(pid)
 
 		self.progress = "Frinja running..."
+		CONSOLE.session_start(script.exports_sync.evaluate)
 
 		while True:
 			if self.cancelled or self.finished:
