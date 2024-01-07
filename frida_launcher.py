@@ -11,16 +11,34 @@ jinja = Environment(
 	autoescape=select_autoescape()
 )
 
+FRIDA_RUNNING = False
+
+def frida_running_false():
+	global FRIDA_RUNNING
+	FRIDA_RUNNING = False
+
+
 class FridaLauncher(bn.BackgroundTaskThread):
 	script: str
 	settings: Settings
 	callback: Optional[frida.core.ScriptMessageCallback]
 
 	def __init__(self, settings: Settings, script: str, callback: Optional[frida.core.ScriptMessageCallback] = None):
+		global FRIDA_RUNNING
+		if FRIDA_RUNNING:
+			raise Exception("Frida is already running")
+
+		FRIDA_RUNNING = True
+
 		super().__init__("Frinja initializing", True)
 		self.script = script
 		self.settings = settings
 		self.callback = callback
+
+	def __del__(self):
+		global FRIDA_RUNNING
+		FRIDA_RUNNING = False
+		return super().__del__()
 
 	@staticmethod
 	def from_template(settings: Settings, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
@@ -29,8 +47,16 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		print("\n".join([f"{i + 1}: {l}" for i, l in enumerate(script.split("\n"))]))
 		return FridaLauncher(settings, script, callback=callback)
 
-	@alert_on_error
+	# @alert_on_error_cb(exception=frida_running_false)
 	def run(self):
+		# global FRIDA_RUNNING
+
+		# if FRIDA_RUNNING:
+		# 	alert("Frinja: Frida is already running")
+		# 	return
+
+		# FRIDA_RUNNING = True
+
 		if self.settings.device is None:
 			alert("Please select a device from the settings")
 
@@ -88,6 +114,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			time.sleep(1)
 
 		if not self.settings.exec_action == ExecutionAction.SPAWN:
+			# FRIDA_RUNNING = False
 			return
 
 		try:
@@ -95,3 +122,5 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			info("Process killed")
 		except frida.ProcessNotFoundError:
 			info("Process already finished")
+
+		# FRIDA_RUNNING = False
