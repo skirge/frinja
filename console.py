@@ -1,3 +1,4 @@
+from threading import Thread
 import binaryninjaui as ui
 import json
 
@@ -110,8 +111,12 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.clear()
 		self.output.appendHtml(f"> {text}")
 
-		result = self._evaluate(text)
-		self.handle_result(result)
+		@alert_on_error
+		def eval_bg():
+			result = self._evaluate(text)
+			self.handle_result(result)
+
+		Thread(target=eval_bg).start()
 
 	def session_start(self, settings: Settings, bv: bn.BinaryView, evaluate: Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]):
 		if not evaluate:

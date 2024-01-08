@@ -48,9 +48,10 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		self.callback = callback
 
 	def __del__(self):
+		# TODO: This crashes - find a better way to indicate if a session is open
 		global FRIDA_RUNNING
 		FRIDA_RUNNING = False
-		return super().__del__()
+		super().__del__()
 
 	@staticmethod
 	def from_template(settings: Settings, bv: bn.BinaryView, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
@@ -112,7 +113,6 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		script.on("message", on_message)
 
 		info("Loading script")
-		debug(self.script)
 		script.load()
 
 		if self.settings.exec_action == ExecutionAction.SPAWN:
