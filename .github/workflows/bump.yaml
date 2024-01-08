@@ -22,7 +22,7 @@ jobs:
     outputs:
       version: ${{ steps.semver.outputs.new_version }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Find last version
         id: get-version
@@ -34,9 +34,9 @@ jobs:
           current_version: ${{ steps.get-version.outputs.version }}
           level: ${{ github.event.inputs.level }}
 
-      - name: Bump setup.py version
+      - name: Bump plugin.json version
         run: |
-          jq '.version = "${{ steps.semver.outputs.new_version }}"' plugin.json > plugin.json.tmp
+          jq ".version = \"${{ steps.semver.outputs.new_version }}\" | .longdescription = \"$(cat README.md)\"" plugin.json > plugin.json.tmp
           mv plugin.json.tmp plugin.json
 
       - name: Commit changes
