@@ -3,9 +3,11 @@ import json
 
 import frida
 from .log import *
+from .settings import Settings
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
 from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout
 from PySide6.QtGui import QTextCursor
+from PySide6.QtCore import Qt
 
 # Got from https://github.com/frida/frida-tools/blob/main/frida_tools/repl.py#L1188
 def hexdump(src, length: int = 16) -> str:
@@ -19,8 +21,57 @@ def hexdump(src, length: int = 16) -> str:
 	return "".join(lines).rstrip("\n")
 
 
+class HistoryLineEdit(QLineEdit):
+	settings: Optional[Settings] = None
+	bv: Optional[bn.BinaryView] = None
+
+	def __init__(self, parent=None):
+		super().__init__(parent)
+		self.history = []
+		self.history_pos = -1
+
+	def keyPressEvent(self, event):
+		if event.key() == Qt.Key.Key_Up:
+			if self.history_pos < len(self.history) - 1:
+				self.history_pos += 1
+				self.setText(self.history[self.history_pos])
+		elif event.key() == Qt.Key.Key_Down:
+			if self.history_pos > 0:
+				self.history_pos -= 1
+				self.setText(self.history[self.history_pos])
+			else:
+				self.history_pos = -1
+				self.clear()
+		else:
+			super().keyPressEvent(event)
+
+	def loadHistory(self):
+		if self.settings and self.bv:
+			self.settings.restore(self.bv)
+			self.history = self.settings.console_history
+			self.history_pos = -1
+
+	def addToHistory(self, command):
+		try:
+			self.history.remove(command)
+		except ValueError:
+			pass
+
+		self.history_pos = -1
+		self.history.insert(0, command)
+
+		if len(self.history) > 4096:
+			self.history = self.history[:4096]
+
+		if self.settings and self.bv:
+			self.settings.console_history = self.history
+			self.settings.store(self.bv)
+
+
 class FridaConsoleWidget(ui.GlobalAreaWidget):
 	_evaluate: Optional[Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]] = None
+	input: HistoryLineEdit
+	output: QTextBrowser
 
 	def __init__(self, name):
 		super().__init__(name)
@@ -39,7 +90,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		hbox = QHBoxLayout()
 		hbox.addWidget(QLabel(">"))
 
-		self.input = QLineEdit(self)
+		self.input = HistoryLineEdit(self)
 		self.input.returnPressed.connect(self.on_input)
 		hbox.addWidget(self.input)
 
@@ -55,19 +106,23 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 			return
 
 		text = self.input.text()
+		self.input.addToHistory(text)
 		self.input.clear()
 		self.output.appendHtml(f"> {text}")
 
 		result = self._evaluate(text)
 		self.handle_result(result)
 
-	def session_start(self, evaluate: Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]):
+	def session_start(self, settings: Settings, bv: bn.BinaryView, evaluate: Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]):
 		if not evaluate:
 			alert("Frinja: No evaluate function set for console on session start")
 			return
 
 		self._evaluate = evaluate
 		self.input.clear()
+		self.input.settings = settings
+		self.input.bv = bv
+		self.input.loadHistory()
 		self.input.setReadOnly(False)
 		self.input.setFocus()
 
@@ -78,6 +133,9 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.setReadOnly(True)
 		self.input.setText("Please use the `Start Hooker` command to start a session")
 		self._evaluate = None
+		self.input.settings = None
+		self.input.bv = None
+		self.input.history = []
 
 	def handle_result(self, result: Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]):
 		if result[0] == "error":

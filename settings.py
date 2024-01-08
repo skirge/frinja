@@ -23,6 +23,7 @@ class Settings():
 	attach_pid: Optional[int] = None
 	file_target: str = ""
 	cmdline: str = ""
+	console_history: list[str] = []
 	# await_spawn: Optional[str] = None
 
 	# TODO: P2P functionality
@@ -96,11 +97,16 @@ class Settings():
 		bv.store_metadata("frinja_attach_pid", self.attach_pid)
 		bv.store_metadata("frinja_cmdline", self.cmdline)
 		bv.store_metadata("frinja_file_target", self.file_target)
+		bv.store_metadata("frinja_console_history", self.console_history)
 
 	def restore(self, bv: BinaryView):
-		self.device = frida.get_device(bv.query_metadata("frinja_device"))
-		self.exec_action = ExecutionAction(bv.query_metadata("frinja_exec_action"))
-		self.cmdline = bv.query_metadata("frinja_cmdline")
-		self.attach_name = bv.query_metadata("frinja_attach_name")
-		self.attach_pid = bv.query_metadata("frinja_attach_pid")
-		self.file_target = bv.query_metadata("frinja_file_target")
+		try:
+			self.device = frida.get_device(bv.query_metadata("frinja_device"))
+			self.exec_action = ExecutionAction(bv.query_metadata("frinja_exec_action"))
+			self.cmdline = bv.query_metadata("frinja_cmdline")
+			self.attach_name = bv.query_metadata("frinja_attach_name")
+			self.attach_pid = bv.query_metadata("frinja_attach_pid")
+			self.file_target = bv.query_metadata("frinja_file_target")
+			self.console_history = bv.query_metadata("frinja_console_history")
+		except KeyError:
+			pass

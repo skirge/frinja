@@ -54,7 +54,7 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 def frida_start(settings: Settings, bv: bn.BinaryView):
 	info("Launching hooker script")
 	targets = _get_functions_by_tag(bv, HOOK_TAG_TYPE)
-	frida_launcher = FridaLauncher.from_template(settings, "hooker.js.j2", on_frida_start(), bv=bv, targets=targets)
+	frida_launcher = FridaLauncher.from_template(settings, bv, "hooker.js.j2", on_frida_start(), targets=targets)
 	frida_launcher.start()
 
 @message_handler
@@ -67,7 +67,7 @@ def on_frida_start(msg: str, data: Optional[bytes]):
 @needs_settings
 def function_inspector(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 	info(f"Launching function inspector for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, "function_inspector.js.j2", on_function_inspector(bv, func), bv=bv, func=func)
+	frida_launcher = FridaLauncher.from_template(settings, bv, "function_inspector.js.j2", on_function_inspector(bv, func), func=func)
 	frida_launcher.start()
 
 @message_handler
@@ -83,7 +83,7 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 def function_dumper(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 	dump_data = []
 	info(f"Launching function dumper for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, "function_dumper.js.j2", on_function_dumper(bv, func, dump_data), bv=bv, func=func)
+	frida_launcher = FridaLauncher.from_template(settings, bv, "function_dumper.js.j2", on_function_dumper(bv, func, dump_data), func=func)
 	frida_launcher.start()
 
 	def reporter():
@@ -113,7 +113,7 @@ def devi(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 		"modules": None,
 	}
 	info(f"Launching devi analysis for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, "devi.js.j2", on_devi(bv, func, dump_data), bv=bv, func=func)
+	frida_launcher = FridaLauncher.from_template(settings, bv, "devi.js.j2", on_devi(bv, func, dump_data), func=func)
 	frida_launcher.start()
 
 	def reporter():

@@ -31,9 +31,10 @@ def frida_running_false():
 class FridaLauncher(bn.BackgroundTaskThread):
 	script: str
 	settings: Settings
+	bv: bn.BinaryView
 	callback: Optional[frida.core.ScriptMessageCallback]
 
-	def __init__(self, settings: Settings, script: str, callback: Optional[frida.core.ScriptMessageCallback] = None):
+	def __init__(self, settings: Settings, bv: bn.BinaryView, script: str, callback: Optional[frida.core.ScriptMessageCallback] = None):
 		global FRIDA_RUNNING
 		if FRIDA_RUNNING:
 			raise Exception("Frida is already running")
@@ -43,6 +44,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		super().__init__("Frinja initializing", True)
 		self.script = script
 		self.settings = settings
+		self.bv = bv
 		self.callback = callback
 
 	def __del__(self):
@@ -51,11 +53,11 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		return super().__del__()
 
 	@staticmethod
-	def from_template(settings: Settings, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
+	def from_template(settings: Settings, bv: bn.BinaryView, template: str, callback: Optional[frida.core.ScriptMessageCallback] = None, **kwargs):
 		template = jinja.get_template(template)
-		script = template.render(**kwargs)
+		script = template.render(settings=settings, bv=bv, **kwargs)
 		print("\n".join([f"{i + 1}: {l}" for i, l in enumerate(script.split("\n"))]))
-		return FridaLauncher(settings, script, callback=callback)
+		return FridaLauncher(settings, bv, script, callback=callback)
 
 	# @alert_on_error_cb(exception=frida_running_false)
 	@alert_on_error
@@ -117,7 +119,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			self.settings.device.resume(pid)
 
 		self.progress = "Frinja running..."
-		CONSOLE.session_start(script.exports_sync.evaluate)
+		CONSOLE.session_start(self.settings, self.bv, script.exports_sync.evaluate)
 
 		while True:
 			if self.cancelled or self.finished:
