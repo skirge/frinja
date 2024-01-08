@@ -36,7 +36,7 @@ jobs:
 
       - name: Bump setup.py version
         run: |
-          jq '.version = "1.1.1"' plugin.json > plugin.json.tmp
+          jq '.version = "${{ steps.semver.outputs.new_version }}"' plugin.json > plugin.json.tmp
           mv plugin.json.tmp plugin.json
 
       - name: Commit changes
