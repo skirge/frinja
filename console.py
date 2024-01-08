@@ -109,7 +109,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		if level == "debug":
 			line = f'<span style="color: gray;"><b>[d]</b></span> <i>{text}</i>'
 		elif level == "info":
-			line = f'<span style="color: blue;"><b>[i]</b></span> {text}'
+			line = f'<span style="color: blue;"><b>[+]</b></span> {text}'
 		elif level == "warning":
 			line = f'<span style="color: yellow;"><b>[!]</b></span> {text}'
 		elif level == "error":

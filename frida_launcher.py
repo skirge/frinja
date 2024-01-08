@@ -6,8 +6,18 @@ from .console import CONSOLE
 from .settings import ExecutionAction, Settings
 from .log import *
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
+
+TEMPLATES_PATH = Path(bn.user_plugin_path()) / "frinja" / "templates"
+
+mgr = bn.RepositoryManager()
+for repo in mgr.repositories:
+	if any([x.path == "dzervas_frinja" for x in repo.plugins]):
+		TEMPLATES_PATH = Path(repo.full_path) / "dzervas_frinja" / "templates"
+		break
+
 jinja = Environment(
-	loader=FileSystemLoader(bn.user_plugin_path() + "/frinja/templates"),
+	loader=FileSystemLoader(TEMPLATES_PATH),
 	autoescape=select_autoescape()
 )
 
@@ -48,6 +58,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		return FridaLauncher(settings, script, callback=callback)
 
 	# @alert_on_error_cb(exception=frida_running_false)
+	@alert_on_error
 	def run(self):
 		# global FRIDA_RUNNING
 
@@ -92,7 +103,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		session = self.settings.device.attach(pid)
 		session.on("detached", on_detached)
 
-		script = session.create_script(self.script + "\n\n" + open(bn.user_plugin_path() + "/frinja/templates/repl.js").read())
+		script = session.create_script(self.script + "\n\n" + open(TEMPLATES_PATH / "repl.js").read())
 		script.set_log_handler(CONSOLE.handle_log)
 
 		script.on("destroyed", on_destroyed)

@@ -103,3 +103,42 @@ def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func
 	if "return" in msg:
 		msg["return"] = int(msg["return"], 16)
 	dump_data.append(msg)
+
+# Devi
+@alert_on_error
+@needs_settings
+def devi(settings: Settings, bv: bn.BinaryView, func: bn.Function):
+	dump_data = {
+		"callList": [],
+		"modules": None,
+	}
+	info(f"Launching devi analysis for {func.name}@{func.start}")
+	frida_launcher = FridaLauncher.from_template(settings, "devi.js.j2", on_devi(bv, func, dump_data), bv=bv, func=func)
+	frida_launcher.start()
+
+	def reporter():
+		frida_launcher.join()
+		info("Analysis complete - calling devi plugin")
+
+		import murx_devi_binja
+
+		# Disable the load_virtual_calls function that shows the load dialog
+		class DeviMuted(murx_devi_binja.binja_devi):
+			def load_virtual_calls(self):
+				pass
+
+		devi = DeviMuted(bv)
+		devi.devirtualize_calls(dump_data["calls"], dump_data["modules"])
+
+
+	t = Thread(target=reporter)
+	t.daemon = True
+	t.start()
+
+
+@message_handler
+def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: dict):
+	if "callList" in msg.keys():
+		dump_data["callList"].extend(msg["callList"])
+	elif "moduleMap" in msg.keys():
+		dump_data["modules"] = msg["moduleMap"]
