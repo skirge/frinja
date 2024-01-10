@@ -25,20 +25,20 @@ import binaryninja as bn
 import binaryninjaui as ui
 from .actions import *
 from .console import CONSOLE
-from .settings import Settings
+from .settings import SETTINGS
 
-settings = Settings()
-bn.PluginCommand.register("Frinja\\Settings", "Set up Frinja to your liking", settings.show)
+bn.PluginCommand.register("Frinja\\Settings", "Set up Frinja to your liking", SETTINGS.show)
 bn.PluginCommand.register("Frinja\\Help", "Show the project readme", show_help)
 bn.PluginCommand.register_for_function("Frinja\\Hook Function", "Mark function for hooking during run", mark_hooked)
-bn.PluginCommand.register("Frinja\\Run Hooker", "Start frida with the given settings and the hooker script", frida_start(settings))
-bn.PluginCommand.register_for_function("Frinja\\Inspect Function Paths", "Highlight the code paths that the functions takes", function_inspector(settings))
-bn.PluginCommand.register_for_function("Frinja\\Dump Function Context", "Create a report of all the function calls and returns", function_dumper(settings))
+bn.PluginCommand.register("Frinja\\Run Hooker", "Start frida with the given settings and the hooker script", frida_start)
+bn.PluginCommand.register_for_function("Frinja\\Inspect Function Paths", "Highlight the code paths that the functions takes", function_inspector)
+bn.PluginCommand.register_for_function("Frinja\\Dump Function Context", "Create a report of all the function calls and returns", function_dumper)
+bn.PluginCommand.register("Frinja\\Log Sniffer", "Try to identify logging functions that are called", log_sniffer)
 
 try:
 	import murx_devi_binja
 	# import devi_binja
-	bn.PluginCommand.register_for_function("Frinja\\Devirtualize Virtual calls (devi plugin)", "Generate a devi virtual calls report and call the plugin", devi(settings))
+	bn.PluginCommand.register_for_function("Frinja\\Devirtualize Virtual calls (devi plugin)", "Generate a devi virtual calls report and call the plugin", devi)
 	info("devi plugin found, enabling devi support")
 except ImportError:
 	warn("devi plugin not found, disabling devi support")

@@ -84,7 +84,7 @@ class Settings():
 		self.device = devices[device_ui.result]
 		self.exec_action = ExecutionAction(exec_action_ui.result)
 		self.attach_name = name_ui.result.strip()
-		self.attach_pid = int(pid_ui.choices[pid_ui.result].split("(")[1][:-1]) if pid_ui.result is not None else None
+		self.attach_pid = int(pid_ui.choices[pid_ui.result].split("(")[1][:-1]) if pid_ui.result is not None and pid_ui.choices else 0
 		self.file_target = file_target_ui.result
 		self.cmdline = cmdline_ui.result
 
@@ -110,3 +110,5 @@ class Settings():
 			self.console_history = bv.query_metadata("frinja_console_history")
 		except KeyError:
 			pass
+
+SETTINGS = Settings()

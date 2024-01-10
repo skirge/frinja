@@ -3,9 +3,11 @@ from threading import Thread
 import binaryninja as bn
 import frida
 
+from .console import CONSOLE
+
 from .frida_launcher import FridaLauncher, jinja
 from .log import *
-from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON, Settings
+from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON, SETTINGS
 
 def _get_functions_by_tag(bv: bn.BinaryView, tag: str):
 	if not bv.get_tag_type(HOOK_TAG_TYPE):
@@ -14,11 +16,9 @@ def _get_functions_by_tag(bv: bn.BinaryView, tag: str):
 	return [f for f in bv.functions if f.get_function_tags(False, tag)]
 
 def needs_settings(func: Callable):
-	def wrapper(settings: Settings):
-		def inner(bv: bn.BinaryView, *args, **kwargs):
-			settings.restore(bv)
-			func(settings, bv, *args, **kwargs)
-		return inner
+	def wrapper(bv: bn.BinaryView, *args, **kwargs):
+		SETTINGS.restore(bv)
+		func(bv, *args, **kwargs)
 	return wrapper
 
 def message_handler(func: Callable):
@@ -51,11 +51,15 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 
 # Frida Start
 @needs_settings
-def frida_start(settings: Settings, bv: bn.BinaryView):
+def frida_start(bv: bn.BinaryView):
 	info("Launching hooker script")
 	targets = _get_functions_by_tag(bv, HOOK_TAG_TYPE)
-	frida_launcher = FridaLauncher.from_template(settings, bv, "hooker.js.j2", on_frida_start(), targets=targets)
-	frida_launcher.start()
+	frida_launcher = FridaLauncher.from_template(bv, "hooker.js.j2", targets=targets)
+	# frida_launcher.on_start.connect(lambda: CONSOLE.session_start(settings, bv))
+	# frida_launcher.on_end.connect(CONSOLE.session_end)
+	# frida_launcher.on_message.connect(CONSOLE.on_message)
+	# frida_launcher.input_signal(CONSOLE.eval_signal)
+	frida_launcher.run()
 
 @message_handler
 def on_frida_start(msg: str, data: Optional[bytes]):
@@ -65,10 +69,10 @@ def on_frida_start(msg: str, data: Optional[bytes]):
 # Function Inspector
 @alert_on_error
 @needs_settings
-def function_inspector(settings: Settings, bv: bn.BinaryView, func: bn.Function):
+def function_inspector(bv: bn.BinaryView, func: bn.Function):
 	info(f"Launching function inspector for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, bv, "function_inspector.js.j2", on_function_inspector(bv, func), func=func)
-	frida_launcher.start()
+	frida_launcher = FridaLauncher.from_template(bv, "function_inspector.js.j2", on_function_inspector(bv, func), func=func)
+	frida_launcher.run()
 
 @message_handler
 def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
@@ -80,11 +84,11 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 # Function Dumper
 @alert_on_error
 @needs_settings
-def function_dumper(settings: Settings, bv: bn.BinaryView, func: bn.Function):
+def function_dumper(bv: bn.BinaryView, func: bn.Function):
 	dump_data = []
 	info(f"Launching function dumper for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, bv, "function_dumper.js.j2", on_function_dumper(bv, func, dump_data), func=func)
-	frida_launcher.start()
+	frida_launcher = FridaLauncher.from_template(bv, "function_dumper.js.j2", on_function_dumper(bv, func, dump_data), func=func)
+	frida_launcher.run()
 
 	def reporter():
 		frida_launcher.join()
@@ -107,14 +111,14 @@ def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func
 # Devi
 @alert_on_error
 @needs_settings
-def devi(settings: Settings, bv: bn.BinaryView, func: bn.Function):
+def devi(bv: bn.BinaryView, func: bn.Function):
 	dump_data = {
 		"callList": [],
 		"modules": None,
 	}
 	info(f"Launching devi analysis for {func.name}@{func.start}")
-	frida_launcher = FridaLauncher.from_template(settings, bv, "devi.js.j2", on_devi(bv, func, dump_data), func=func)
-	frida_launcher.start()
+	frida_launcher = FridaLauncher.from_template(bv, "devi.js.j2", on_devi(bv, func, dump_data), func=func)
+	frida_launcher.run()
 
 	def reporter():
 		frida_launcher.join()
@@ -133,7 +137,7 @@ def devi(settings: Settings, bv: bn.BinaryView, func: bn.Function):
 
 	t = Thread(target=reporter)
 	t.daemon = True
-	t.start()
+	t.run()
 
 
 @message_handler
@@ -142,3 +146,14 @@ def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Functi
 		dump_data["callList"].extend(msg["callList"])
 	elif "moduleMap" in msg.keys():
 		dump_data["modules"] = msg["moduleMap"]
+
+# Log Sniffer
+@needs_settings
+def log_sniffer(bv: bn.BinaryView):
+	info("Launching log sniffer")
+	frida_launcher = FridaLauncher.from_template(bv, "log_sniffer.js.j2", on_log_sniffer())
+	frida_launcher.run()
+
+@message_handler
+def on_log_sniffer(msg: str, data: Optional[bytes]):
+	info(msg)
