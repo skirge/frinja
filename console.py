@@ -226,8 +226,8 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 		self.output.appendHtml(line)
 
-	def handle_message(self, msg: frida.core.ScriptPayloadMessage, data: Optional[bytes]):
-		self.output.appendHtml(escape("< " + msg))
+	def handle_message(self, msg: Any):
+		self.output.appendHtml(escape("< " + str(msg)))
 
 	def handle_error(self, msg: frida.core.ScriptErrorMessage):
 		self.output.appendHtml(f"<span style='color: red;'><b>{escape(msg['description'])}</b></span>")

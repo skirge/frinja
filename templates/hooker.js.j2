@@ -5,11 +5,17 @@
 
 Interceptor.attach({{ func.name }}_ptr, {
 	onEnter: function(args) {
-		send(`{{ func.name }}@{{ "%#x" % func.start }}(
-			{%- for param in func.parameter_vars -%}
-				{%- set index = loop.index0 | string -%}
-				{{ param.name }}: ${ {{- argparse(param, "args[" + index + "]") -}} },
-			{%- endfor -%})`);
+		send({
+			"event": "call",
+			"function": "{{ func.name }}",
+			"address": {{ "%#x" % func.start }},
+			"args": {
+				{%- for param in func.parameter_vars -%}
+					{%- set index = loop.index0 | string -%}
+					{{ param.name }}: {{- argparse(param, "args[" + index + "]") -}},
+				{%- endfor -%}
+			}
+		});
 
 		{%- if "@prehook" in func.comment %}
 		{% for param in func.parameter_vars %}
@@ -23,7 +29,12 @@ Interceptor.attach({{ func.name }}_ptr, {
 		{%- if "@ret" in func.comment -%}
 		{%- set new_retval = func.comment.split("@ret:")[1].split("\n")[0].strip() -%}
 		{%- endif %}
-		send(`<- {{ func.name }}@{{ "%#x" % func.start }}() {%- if func.can_return %} = ${ {{- argparse(func.type.return_value, "retval") -}} } {%- endif %}{% if "@ret" in func.comment %} ~> {{ new_retval }}{% endif %}`);
+		send({
+			"event": "return",
+			"function": "{{ func.name }}",
+			"address": {{ "%#x" % func.start }},
+			"retval": {{ new_retval if "@ret" in func.comment else "retval" }}
+		});
 
 		{%- if "@posthook" in func.comment %}
 		{{ func.comment.split("@posthook:")[1].split("\n")[0].strip() }}

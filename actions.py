@@ -1,8 +1,10 @@
-from typing import Optional
+from html import escape
+from typing import Any, Optional
 import binaryninja as bn
 
 from .frida_launcher import FridaLauncher, jinja
 from .log import *
+from .console import CONSOLE
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON
 from .helper import get_functions_by_tag, needs_settings, message_handler
 
@@ -25,9 +27,32 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 @needs_settings
 def frida_start(bv: bn.BinaryView):
 	info("Launching hooker script")
+	# int is immutable so we have to use dict/list
+	state = { "depth": 0 }
 	targets = get_functions_by_tag(bv, HOOK_TAG_TYPE)
 	frida_launcher = FridaLauncher.from_template(bv, "hooker.js.j2", targets=targets)
+	frida_launcher.on_message_send = [on_frida_start(state)]
 	frida_launcher.start()
+
+@message_handler
+def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
+	if not isinstance(msg, dict) or "event" not in msg.keys() or msg["event"] not in ("call", "return"):
+		CONSOLE.handle_message(msg)
+		return
+
+	indent = "║ " * state["depth"]
+	# TODO: Per-thread color
+	if msg["event"] == "call":
+		args = ", ".join([f"{k}={v}" for k, v in msg["args"].items()])
+		CONSOLE.output.appendHtml(escape(f"{indent}╔ {msg['function']}@{hex(msg['address'])}({args})"))
+		state["depth"] += 1
+	elif msg["event"] == "return":
+		state["depth"] -= 1
+		indent = indent[:-2]
+		CONSOLE.output.appendHtml(escape(f"{indent}╚ {msg['function']}@{hex(msg['address'])}(...) « {msg['retval']}"))
+
+	if state["depth"] <= 0:
+		state["depth"] = 0
 
 # Function Inspector
 @alert_on_error

@@ -45,7 +45,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		self.on_start = [CONSOLE.session_start]
 		self.on_end = [CONSOLE.session_end]
 		self.on_message = []
-		self.on_message_send = [lambda msg, data: CONSOLE.handle_message(msg["payload"], data)]
+		self.on_message_send = [lambda msg, _: CONSOLE.handle_message(msg)]
 		self.on_message_error = [CONSOLE.handle_error]
 
 	@staticmethod
