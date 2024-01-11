@@ -10,9 +10,30 @@ from html import escape
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
 from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout, QPushButton
 from PySide6.QtGui import QTextCursor, QIcon
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
 
 ICONS_PATH = PLUGIN_PATH / "icons"
+
+def on_anchor_click(url: QUrl):
+	bv: bn.BinaryView = ui.UIContext.activeContext().getCurrentView().getData()
+
+	target = url.path().strip()
+	try:
+		target = int(target, 16)
+	except ValueError:
+		try:
+			target = int(target)
+		except ValueError:
+			pass
+
+	if url.scheme() == "function":
+		func = bv.get_function_at(target)
+		if func:
+			bv.navigate(bv.view, func.start)
+		else:
+			alert(f"Function not found at: {url.path()}")
+	elif url.scheme() == "address":
+		bv.navigate(bv.view, target)
 
 # Got from https://github.com/frida/frida-tools/blob/main/frida_tools/repl.py#L1188
 def hexdump(src, length: int = 16) -> str:
@@ -82,6 +103,9 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		layout = QVBoxLayout()
 
 		self.output = QTextBrowser(self)
+		self.output.setOpenLinks(False)
+		self.output.setOpenExternalLinks(False)
+		self.output.anchorClicked.connect(on_anchor_click)
 		layout.addWidget(self.output)
 
 		def appendHtml(self: QTextBrowser, html: str):

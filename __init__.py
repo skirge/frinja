@@ -36,8 +36,7 @@ bn.PluginCommand.register_for_function("Frinja\\Dump Function Context", "Create 
 bn.PluginCommand.register("Frinja\\Log Sniffer", "Try to identify logging functions that are called", log_sniffer)
 
 try:
-	import murx_devi_binja
-	# import devi_binja
+	import murx_devi_binja # type: ignore
 	bn.PluginCommand.register_for_function("Frinja\\Devirtualize Virtual calls (devi plugin)", "Generate a devi virtual calls report and call the plugin", devi)
 	info("devi plugin found, enabling devi support")
 except ImportError:

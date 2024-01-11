@@ -40,16 +40,21 @@ def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 		CONSOLE.handle_message(msg)
 		return
 
+	for k, v in msg.items():
+		if isinstance(v, str):
+			msg[k] = escape(v)
+
+	link = f'<a href="function:{hex(msg["address"])}">{msg["function"]}</a>'
 	indent = "║ " * state["depth"]
 	# TODO: Per-thread color
 	if msg["event"] == "call":
 		args = ", ".join([f"{k}={v}" for k, v in msg["args"].items()])
-		CONSOLE.output.appendHtml(escape(f"{indent}╔ {msg['function']}@{hex(msg['address'])}({args})"))
+		CONSOLE.output.appendHtml(f"{indent}╔ {link}({args})")
 		state["depth"] += 1
 	elif msg["event"] == "return":
 		state["depth"] -= 1
 		indent = indent[:-2]
-		CONSOLE.output.appendHtml(escape(f"{indent}╚ {msg['function']}@{hex(msg['address'])}(...) « {msg['retval']}"))
+		CONSOLE.output.appendHtml(f"{indent}╚ {link}(...) « {msg['retval']}")
 
 	if state["depth"] <= 0:
 		state["depth"] = 0
@@ -109,7 +114,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 		frida_launcher.join()
 		info("Analysis complete - calling devi plugin")
 
-		import murx_devi_binja
+		import murx_devi_binja # type: ignore
 
 		# Disable the load_virtual_calls function that shows the load dialog
 		class DeviMuted(murx_devi_binja.binja_devi):
