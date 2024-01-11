@@ -81,7 +81,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 					bn.execute_on_main_thread(lambda: f(msg))
 			elif msg["type"] == "send":
 				for f in self.on_message_send:
-					bn.execute_on_main_thread(lambda: f(msg))
+					bn.execute_on_main_thread(lambda: f(msg, data))
 
 		def on_log(level: str, text: str):
 			for f in self.on_log:
