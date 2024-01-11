@@ -1,5 +1,5 @@
 import time
-from typing import Any, Mapping, Optional, Tuple, Union
+from typing import Any, List, Mapping, Optional, Tuple, Union
 import frida
 import binaryninja as bn
 
@@ -23,19 +23,19 @@ jinja = Environment(
 	autoescape=select_autoescape()
 )
 
-class FridaLauncher(bn.BackgroundTask):
+
+class FridaLauncher(bn.BackgroundTaskThread):
 	bv: bn.BinaryView
 	script: str
 
-	on_log: SignalInstance
-	# on_destroyed: SignalInstance
-	# on_detached: SignalInstance
-	on_start: Optional[SignalInstance]
-	on_end: Optional[SignalInstance]
-	on_message: Optional[SignalInstance]
-	on_message_send: Optional[SignalInstance]
-	on_message_error: Optional[SignalInstance]
-	_evaluate: Optional[Callable[[str], str]]
+	on_log: List[Callable[[str, str], None]]
+	on_destroyed: List[Callable[[], None]]
+	on_detached: List[Callable[[str], None]]
+	on_start: List[Callable[[Callable[[str], str]], None]]
+	on_end: List[Callable[[], None]]
+	on_message: List[Callable[[frida.core.ScriptMessage, Optional[bytes]], None]]
+	on_message_send: List[Callable[[frida.core.ScriptPayloadMessage], None]]
+	on_message_error: List[Callable[[frida.core.ScriptErrorMessage], None]]
 
 	def __init__(self, bv: bn.BinaryView, script: str):
 		super().__init__("Frinja initializing", True)
@@ -44,24 +44,14 @@ class FridaLauncher(bn.BackgroundTask):
 		self.bv = bv
 		SETTINGS.restore(bv)
 
-		self.on_log = None
-		self.on_start = None
-		self.on_end = None
-		self.on_message = None
-		self.on_message_send = None
-		self.on_message_error = None
-		self._evaluate = None
-
-	def finalizer(self):
-		SETTINGS.store(self.bv)
-
-	def cancel(self):
-		warn("Cancelled")
-		super().cancel()
-
-	def finish(self):
-		warn("Finished")
-		super().finish()
+		self.on_log = [CONSOLE.handle_log]
+		self.on_destroyed = []
+		self.on_detached = []
+		self.on_start = [CONSOLE.session_start]
+		self.on_end = [CONSOLE.session_end]
+		self.on_message = [CONSOLE.handle_message]
+		self.on_message_send = []
+		self.on_message_error = []
 
 	@staticmethod
 	def from_template(bv: bn.BinaryView, template_name: str, **kwargs):
@@ -72,18 +62,37 @@ class FridaLauncher(bn.BackgroundTask):
 
 		return FridaLauncher(bv, script)
 
-	def input_signal(self, signal: SignalInstance):
-		signal.connect(self.on_input)
-
-	def on_input(self, text: str):
-		if self._evaluate:
-			self._evaluate(text)
-
-	# @alert_on_error
 	def run(self):
 		if SETTINGS.device is None:
 			alert("Please select a device from the settings")
 
+		# Prepare the callback handlers
+		def on_detached(reason):
+			for f in self.on_detached:
+				bn.execute_on_main_thread(lambda: f(reason))
+			self.cancel()
+
+		def on_destroyed():
+			for f in self.on_destroyed:
+				bn.execute_on_main_thread(f)
+			self.cancel()
+
+		def on_message(msg: frida.core.ScriptMessage, data: Optional[bytes]):
+			for f in self.on_message:
+				bn.execute_on_main_thread(lambda: f(msg, data))
+
+			if msg["type"] == "error":
+				for f in self.on_message_error:
+					bn.execute_on_main_thread(lambda: f(msg))
+			elif msg["type"] == "send":
+				for f in self.on_message_send:
+					bn.execute_on_main_thread(lambda: f(msg))
+
+		def on_log(level: str, text: str):
+			for f in self.on_log:
+				bn.execute_on_main_thread(lambda: f(level, text))
+
+		# Find (or create) the process
 		pid = 0
 		if SETTINGS.exec_action == ExecutionAction.SPAWN:
 			# TODO: Allow tinkering with the env, stdio and cwd
@@ -95,67 +104,55 @@ class FridaLauncher(bn.BackgroundTask):
 			pid = SETTINGS.attach_pid
 		else:
 			alert("Frinja: Unknown execution action")
-
-		def on_detached(reason):
-			info(f"Script detached: {reason}")
-			# self.on_end.emit()
-			CONSOLE.session_end()
-			self.finish()
-
-		def on_destroyed():
-			info("Script destroyed")
-			# self.on_end.emit()
-			CONSOLE.session_end()
-			self.finish()
-
-		def on_message(msg: frida.core.ScriptMessage, data: Optional[bytes]):
-			# self.on_message.emit(msg)
-			info(f"Message received: {msg} {data}")
-
-			# if msg["type"] == "error":
-				# error(msg["stack"])
-				# self.on_message_error.emit(msg)
-			# elif msg["type"] == "send":
-				# CONSOLE.handle_result(msg["payload"])
-				# self.on_message_send.emit(msg)
-
 		info(f"Attaching to {pid}")
 
+		# Initialize the frida session
 		session = SETTINGS.device.attach(pid)
 		session.on("detached", on_detached)
 
+		# Load the script
 		script = session.create_script(self.script + "\n\n" + open(TEMPLATES_PATH / "repl.js").read())
-		# script.set_log_handler(lambda level, text: self.on_log.emit(level, text))
-		script.set_log_handler(CONSOLE.handle_log)
-
+		script.set_log_handler(on_log)
 		script.on("destroyed", on_destroyed)
 		script.on("message", on_message)
-
 		info("Loading script")
 		script.load()
 
+		# Add the session & script finalizer
+		def finish_script():
+			if SETTINGS.exec_action != ExecutionAction.SPAWN:
+				script.unload()
+				session.detach()
+			else:
+				try:
+					SETTINGS.device.kill(pid)
+					info("Process killed")
+				except frida.ProcessNotFoundError:
+					info("Process already finished")
+		self.on_end.append(finish_script)
+
+		# Resume the process and connect to the REPL
 		if SETTINGS.exec_action == ExecutionAction.SPAWN:
 			SETTINGS.device.resume(pid)
 
 		self.progress = "Frinja running..."
-		# self.on_start.emit()
-		self._evaluate = script.exports_sync.evaluate
-		CONSOLE.session_start(self._evaluate)
+		evaluate = script.exports_sync.evaluate # RPC export defined in repl.js
 
-		# while True:
-		# 	if self.cancelled or self.finished:
-		# 		break
-		# 	time.sleep(1)
+		for f in self.on_start:
+			bn.execute_on_main_thread(lambda: f(evaluate))
 
-		# self.on_end.emit()
+		while True:
+			if self.cancelled or self.finished:
+				break
+			time.sleep(1)
 
-		# if SETTINGS.exec_action != ExecutionAction.SPAWN:
-		# 	script.unload()
-		# 	session.detach()
-		# 	return
+	def _finalizer(self):
+		self.progress = "Frinja cleaning up"
+		for f in self.on_end:
+			bn.execute_on_main_thread(f)
 
-		# try:
-		# 	SETTINGS.device.kill(pid)
-		# 	info("Process killed")
-		# except frida.ProcessNotFoundError:
-		# 	info("Process already finished")
+		SETTINGS.store(self.bv)
+
+	def finish(self):
+		self._finalizer()
+		super().finish()

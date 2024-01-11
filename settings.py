@@ -24,7 +24,6 @@ class Settings():
 	file_target: str = ""
 	cmdline: str = ""
 	console_history: list[str] = []
-	# await_spawn: Optional[str] = None
 
 	# TODO: P2P functionality
 	# TODO: Certificate support

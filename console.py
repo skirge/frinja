@@ -7,6 +7,7 @@ import frida
 # from .frida_launcher import FridaLauncher
 from .log import *
 from .settings import SETTINGS, Settings
+from html import escape
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
 from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout
 from PySide6.QtGui import QTextCursor
@@ -69,13 +70,6 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 	input: HistoryLineEdit
 	output: QTextBrowser
 
-	eval_signal: SignalInstance
-
-	on_start_signal: SignalInstance
-	on_end_signal: SignalInstance
-	on_message_signal: SignalInstance
-	on_log_signal: SignalInstance
-
 	settings: Settings
 	bv: bn.BinaryView
 
@@ -101,32 +95,11 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		hbox.addWidget(QLabel(">"))
 
 		self.input = HistoryLineEdit(self)
-		# self.input.bv = bv
-		# self.input.settings = settings
 		self.input.returnPressed.connect(self.on_input_handler)
 		hbox.addWidget(self.input)
 
 		layout.addLayout(hbox)
 		self.setLayout(layout)
-
-		# self.eval_signal = Signal(str)
-		# launcher.input_signal(self.eval_signal)
-
-		# self.on_start_signal = Signal()
-		# self.on_start_signal.connect(self.session_start)
-		# launcher.on_start = self.on_start_signal
-
-		# self.on_end_signal = Signal()
-		# self.on_end_signal.connect(self.session_end)
-		# launcher.on_end = self.on_end_signal
-
-		# self.on_message_signal = Signal(frida.core.ScriptMessage)
-		# self.on_message_signal.connect(self.handle_result)
-		# launcher.on_message = self.on_message_signal
-
-		# self.on_log_signal = Signal(str, str)
-		# self.on_log_signal.connect(self.handle_log)
-		# launcher.on_log = self.on_log_signal
 
 		self.session_end()
 
@@ -141,10 +114,12 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.clear()
 		self.output.appendHtml(f"> {text}")
 
+		result = self._evaluate(text)
+		self.handle_result(result)
 		@alert_on_error
 		def eval_bg():
 			result = self._evaluate(text)
-			self.handle_result(result)
+			bn.execute_on_main_thread_and_wait(lambda: self.handle_result(result))
 
 		Thread(target=eval_bg).start()
 
@@ -161,7 +136,6 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 		self.output.appendHtml("Frida Client v" + str(frida.__version__))
 		self.output.appendHtml("Frida Client v" + evaluate("Frida.version")[1])
-		# self.eval_signal.emit("console.log('Frida Server v' + Frida.version);")
 
 	def session_end(self):
 		self.input.setReadOnly(True)
@@ -172,7 +146,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 	def handle_result(self, result: Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]):
 		if result[0] == "error":
 			error = result[1]
-			line = f'<span style="color: red;"><b>{error["name"]}</b></span>: {error["message"]}'
+			line = f'<span style="color: red;"><b>{escape(error["name"])}</b></span>: {escape(error["message"])}'
 
 			if "stack" in error.keys():
 				message_len = len(error["message"].split("\n"))
@@ -185,27 +159,38 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 			return
 
 		if isinstance(result, bytes):
-			self.output.appendHtml(hexdump(result))
+			self.output.appendHtml(escape(hexdump(result)))
 		elif isinstance(result, dict):
 			warn(f"dict instance {str(result)}")
 		elif result[0] in ("function", "undefined", "null"):
-			self.output.appendHtml(result[0])
+			self.output.appendHtml(escape(result[0]))
 		else:
-			self.output.appendHtml(json.dumps(result[1], sort_keys=True, indent=4, separators=(",", ": ")))
+			self.output.appendHtml(escape(json.dumps(result[1], sort_keys=True, indent=4, separators=(",", ": "))))
 
 	def handle_log(self, level: str, text: str):
 		line = text
 
 		if level == "debug":
-			line = f'<span style="color: gray;"><b>[d]</b></span> <i>{text}</i>'
+			line = f'<span style="color: gray;"><b>[d]</b></span> <i>{escape(text)}</i>'
 		elif level == "info":
-			line = f'<span style="color: blue;"><b>[+]</b></span> {text}'
+			line = f'<span style="color: blue;"><b>[+]</b></span> {escape(text)}'
 		elif level == "warning":
-			line = f'<span style="color: yellow;"><b>[!]</b></span> {text}'
+			line = f'<span style="color: yellow;"><b>[!]</b></span> {escape(text)}'
 		elif level == "error":
-			line = f'<span style="color: red;"><b>[x]</b> {text}</span>'
+			line = f'<span style="color: red;"><b>[x]</b> {escape(text)}</span>'
 
 		self.output.appendHtml(line)
+
+	def handle_message(self, msg: frida.core.ScriptMessage, data: Optional[bytes]):
+		print("handle", msg)
+		if msg["type"] == "error":
+			self.output.appendHtml(f"<span style='color: red;'><b>{escape(msg['description'])}</b></span>")
+			if msg["stack"]:
+				self.output.appendHtml("<span style='color: red;>" + "<br/>".join(escape(msg["description"]).split("\\n")) + "</span>")
+
+			return
+
+		self.output.appendHtml(escape("< " + msg["payload"]))
 
 
 CONSOLE = FridaConsoleWidget()
