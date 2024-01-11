@@ -1,17 +1,18 @@
 from threading import Thread
 import binaryninjaui as ui
 import json
-
 import frida
 
-# from .frida_launcher import FridaLauncher
 from .log import *
-from .settings import SETTINGS, Settings
+from .settings import SETTINGS
+from .helper import PLUGIN_PATH
 from html import escape
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
-from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout
-from PySide6.QtGui import QTextCursor
-from PySide6.QtCore import Qt, Signal, SignalInstance
+from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout, QPushButton
+from PySide6.QtGui import QTextCursor, QIcon
+from PySide6.QtCore import Qt
+
+ICONS_PATH = PLUGIN_PATH / "icons"
 
 # Got from https://github.com/frida/frida-tools/blob/main/frida_tools/repl.py#L1188
 def hexdump(src, length: int = 16) -> str:
@@ -66,12 +67,14 @@ class HistoryLineEdit(QLineEdit):
 
 
 class FridaConsoleWidget(ui.GlobalAreaWidget):
-	_evaluate: Optional[Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]] = None
+	_evaluate_cb: Optional[Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]] = None
+	_stop_cb: Optional[Callable[[], None]] = None
+
 	input: HistoryLineEdit
 	output: QTextBrowser
-
-	settings: Settings
-	bv: bn.BinaryView
+	play_stop: QPushButton
+	hook: QPushButton
+	save: QPushButton
 
 	def __init__(self):
 		super().__init__("Frida Console")
@@ -98,6 +101,22 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.returnPressed.connect(self.on_input_handler)
 		hbox.addWidget(self.input)
 
+		self.play_stop = QPushButton(parent=self)
+		self.play_stop.clicked.connect(self.on_play_stop)
+		hbox.addWidget(self.play_stop)
+
+		self.save = QPushButton(parent=self)
+		self.save.setIcon(QIcon(str(ICONS_PATH / "floppy-disk-solid.svg")))
+		self.save.setToolTip("Save script and console output to file")
+		# self.save.clicked.connect(self.on_save)
+		hbox.addWidget(self.save)
+
+		self.hook = QPushButton(parent=self)
+		self.hook.setIcon(QIcon(str(ICONS_PATH / "code-branch-solid.svg")))
+		self.hook.setToolTip("Mark the current function to be hooked")
+		self.hook.clicked.connect(self.on_hook)
+		hbox.addWidget(self.hook)
+
 		layout.addLayout(hbox)
 		self.setLayout(layout)
 
@@ -105,7 +124,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 	@alert_on_error
 	def on_input_handler(self):
-		if not self._evaluate:
+		if not self._evaluate_cb:
 			self.output.appendHtml("Internal Error: No evaluate function set")
 			return
 
@@ -114,34 +133,60 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.clear()
 		self.output.appendHtml(f"> {text}")
 
-		result = self._evaluate(text)
+		result = self._evaluate_cb(text)
 		self.handle_result(result)
 		@alert_on_error
 		def eval_bg():
-			result = self._evaluate(text)
+			result = self._evaluate_cb(text)
 			bn.execute_on_main_thread_and_wait(lambda: self.handle_result(result))
 
 		Thread(target=eval_bg).start()
 
-	def session_start(self, evaluate: Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]):
+	def on_play_stop(self):
+		if self._evaluate_cb:
+			self.session_end()
+			self._stop_cb()
+		else:
+			bv = ui.UIContext.activeContext().getCurrentView().getData()
+			ctx = bn.PluginCommandContext(bv)
+			bn.PluginCommand.get_valid_list(ctx)["Frinja\\Run Hooker"].execute(ctx)
+
+	def on_hook(self):
+		bv = ui.UIContext.activeContext().getCurrentView().getData()
+		func = ui.UIContext.activeContext().getCurrentView().getCurrentFunction()
+		ctx = bn.PluginCommandContext(bv)
+		ctx.function = func
+		bn.PluginCommand.get_valid_list(ctx)["Frinja\\Hook Function"].execute(ctx)
+
+	def session_start(self, evaluate: Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]], stop: Callable[[], None]):
 		if not evaluate:
 			alert("Frinja: No evaluate function set for console on session start")
 			return
 
-		self._evaluate = evaluate
+		self._evaluate_cb = evaluate
+		self._stop_cb = stop
+
 		self.input.clear()
 		self.input.loadHistory()
 		self.input.setReadOnly(False)
 		self.input.setFocus()
 
-		self.output.appendHtml("Frida Client v" + str(frida.__version__))
+		self.output.insertHtml("Frida Client v" + str(frida.__version__))
 		self.output.appendHtml("Frida Client v" + evaluate("Frida.version")[1])
+
+		self.play_stop.setIcon(QIcon(str(ICONS_PATH / "stop-solid.svg")))
+		self.play_stop.setToolTip("Stop frida session")
+		# self.save.show()
 
 	def session_end(self):
 		self.input.setReadOnly(True)
 		self.input.setText("Please use the `Start Hooker` command to start a session")
-		self._evaluate = None
+		self._evaluate_cb = None
 		self.input.history = []
+
+		self.play_stop.setIcon(QIcon(str(ICONS_PATH / "play-solid.svg")))
+		self.play_stop.setToolTip("Start frida session")
+		self.save.hide()
 
 	def handle_result(self, result: Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]):
 		if result[0] == "error":
@@ -181,16 +226,13 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 		self.output.appendHtml(line)
 
-	def handle_message(self, msg: frida.core.ScriptMessage, data: Optional[bytes]):
-		print("handle", msg)
-		if msg["type"] == "error":
-			self.output.appendHtml(f"<span style='color: red;'><b>{escape(msg['description'])}</b></span>")
-			if msg["stack"]:
-				self.output.appendHtml("<span style='color: red;>" + "<br/>".join(escape(msg["description"]).split("\\n")) + "</span>")
+	def handle_message(self, msg: frida.core.ScriptPayloadMessage, data: Optional[bytes]):
+		self.output.appendHtml(escape("< " + msg))
 
-			return
-
-		self.output.appendHtml(escape("< " + msg["payload"]))
+	def handle_error(self, msg: frida.core.ScriptErrorMessage):
+		self.output.appendHtml(f"<span style='color: red;'><b>{escape(msg['description'])}</b></span>")
+		if msg["stack"]:
+			self.output.appendHtml("<span style='color: red;>" + "<br/>".join(escape(msg["stack"]).split("\\n")) + "</span>")
 
 
 CONSOLE = FridaConsoleWidget()

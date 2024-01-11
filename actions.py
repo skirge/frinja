@@ -18,6 +18,8 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 
 	if not func.get_function_tags(False, HOOK_TAG_TYPE):
 		func.add_tag(HOOK_TAG_TYPE, "Hook function calls", None)
+	else:
+		func.remove_user_function_tags_of_type(HOOK_TAG_TYPE)
 
 # Frida Start
 @needs_settings
@@ -33,8 +35,7 @@ def frida_start(bv: bn.BinaryView):
 def function_inspector(bv: bn.BinaryView, func: bn.Function):
 	info(f"Launching function inspector for {func.name}@{func.start}")
 	frida_launcher = FridaLauncher.from_template(bv, "function_inspector.js.j2", func=func)
-	frida_launcher.on_message = []
-	frida_launcher.on_message_send.append(on_function_inspector(bv, func))
+	frida_launcher.on_message_send = [on_function_inspector(bv, func)]
 	frida_launcher.start()
 
 @message_handler
@@ -58,8 +59,7 @@ def function_dumper(bv: bn.BinaryView, func: bn.Function):
 		bv.show_markdown_report(f"{func.name} Dump", report)
 
 	frida_launcher = FridaLauncher.from_template(bv, "function_dumper.js.j2", func=func)
-	frida_launcher.on_message = []
-	frida_launcher.on_message_send.append(on_function_dumper(bv, func, dump_data))
+	frida_launcher.on_message_send = [on_function_dumper(bv, func, dump_data)]
 	frida_launcher.on_end.append(reporter)
 	frida_launcher.start()
 
@@ -95,8 +95,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 		devi.devirtualize_calls(dump_data["calls"], dump_data["modules"])
 
 	frida_launcher = FridaLauncher.from_template(bv, "devi.js.j2", on_devi(bv, func, dump_data), func=func)
-	frida_launcher.on_message = []
-	frida_launcher.on_message_send.append(on_devi(bv, func, dump_data))
+	frida_launcher.on_message_send = [on_devi(bv, func, dump_data)]
 	frida_launcher.on_end.append(reporter)
 	frida_launcher.start()
 

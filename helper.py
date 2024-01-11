@@ -1,9 +1,18 @@
+from pathlib import Path
 from typing import Callable, Optional
 import binaryninja as bn
 import frida
 
 from .log import *
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON, SETTINGS
+
+PLUGIN_PATH = Path(bn.user_plugin_path()) / "frinja"
+
+mgr = bn.RepositoryManager()
+for repo in mgr.repositories:
+	if any([x.path == "dzervas_frinja" and x.installed for x in repo.plugins]):
+		PLUGIN_PATH = Path(repo.full_path) / "dzervas_frinja"
+		break
 
 def get_functions_by_tag(bv: bn.BinaryView, tag: str):
 	if not bv.get_tag_type(HOOK_TAG_TYPE):

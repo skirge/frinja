@@ -6,17 +6,12 @@ import binaryninja as bn
 from .console import CONSOLE
 from .settings import ExecutionAction, SETTINGS
 from .log import *
+from .helper import PLUGIN_PATH
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
 from PySide6.QtCore import SignalInstance
 
-TEMPLATES_PATH = Path(bn.user_plugin_path()) / "frinja" / "templates"
-
-mgr = bn.RepositoryManager()
-for repo in mgr.repositories:
-	if any([x.path == "dzervas_frinja" and x.installed for x in repo.plugins]):
-		TEMPLATES_PATH = Path(repo.full_path) / "dzervas_frinja" / "templates"
-		break
+TEMPLATES_PATH = PLUGIN_PATH / "templates"
 
 jinja = Environment(
 	loader=FileSystemLoader(TEMPLATES_PATH),
@@ -34,7 +29,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	on_start: List[Callable[[Callable[[str], str]], None]]
 	on_end: List[Callable[[], None]]
 	on_message: List[Callable[[frida.core.ScriptMessage, Optional[bytes]], None]]
-	on_message_send: List[Callable[[frida.core.ScriptPayloadMessage], None]]
+	on_message_send: List[Callable[[frida.core.ScriptPayloadMessage, Optional[bytes]], None]]
 	on_message_error: List[Callable[[frida.core.ScriptErrorMessage], None]]
 
 	def __init__(self, bv: bn.BinaryView, script: str):
@@ -49,9 +44,9 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		self.on_detached = []
 		self.on_start = [CONSOLE.session_start]
 		self.on_end = [CONSOLE.session_end]
-		self.on_message = [CONSOLE.handle_message]
-		self.on_message_send = []
-		self.on_message_error = []
+		self.on_message = []
+		self.on_message_send = [lambda msg, data: CONSOLE.handle_message(msg["payload"], data)]
+		self.on_message_error = [CONSOLE.handle_error]
 
 	@staticmethod
 	def from_template(bv: bn.BinaryView, template_name: str, **kwargs):
@@ -139,7 +134,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		evaluate = script.exports_sync.evaluate # RPC export defined in repl.js
 
 		for f in self.on_start:
-			bn.execute_on_main_thread(lambda: f(evaluate))
+			bn.execute_on_main_thread(lambda: f(evaluate, self.cancel))
 
 		while True:
 			if self.cancelled or self.finished:
