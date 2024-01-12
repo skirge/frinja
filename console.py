@@ -202,7 +202,10 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.setFocus()
 
 		self.output.insertHtml("Frida Client v" + str(frida.__version__))
-		self.output.appendHtml("Frida Client v" + evaluate("Frida.version")[1])
+		try:
+			self.output.appendHtml("Frida Client v" + evaluate("Frida.version")[1])
+		except frida.InvalidOperationError:
+			pass
 
 		self.play_stop.setIcon(QIcon(str(ICONS_PATH / "stop-solid.svg")))
 		self.play_stop.setToolTip("Stop frida session")
