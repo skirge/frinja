@@ -114,7 +114,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 		frida_launcher.join()
 		info("Analysis complete - calling devi plugin")
 
-		import murx_devi_binja # type: ignore
+		import murx_devi_binja
 
 		# Disable the load_virtual_calls function that shows the load dialog
 		class DeviMuted(murx_devi_binja.binja_devi):

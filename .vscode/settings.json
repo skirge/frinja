@@ -3,5 +3,13 @@
 		"Devirtualize",
 		"frida",
 		"Frinja"
+	],
+	"python.autoComplete.extraPaths": [
+		"~/.binaryninja/repositories/official/plugins",
+		"~/.binaryninja/repositories/community/plugins"
+	],
+	"python.analysis.extraPaths": [
+		"~/.binaryninja/repositories/official/plugins",
+		"~/.binaryninja/repositories/community/plugins"
 	]
 }

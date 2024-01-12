@@ -36,11 +36,18 @@ bn.PluginCommand.register_for_function("Frinja\\Dump Function Context", "Create 
 bn.PluginCommand.register("Frinja\\Log Sniffer", "Try to identify logging functions that are called", log_sniffer)
 
 try:
-	import murx_devi_binja # type: ignore
+	import murx_devi_binja
 	bn.PluginCommand.register_for_function("Frinja\\Devirtualize Virtual calls (devi plugin)", "Generate a devi virtual calls report and call the plugin", devi)
 	info("devi plugin found, enabling devi support")
 except ImportError:
 	warn("devi plugin not found, disabling devi support")
 	pass
+
+try:
+	import Vector35_snippets
+	from .snippets import *
+	info("snippets plugin found, enabling snippets support")
+except ImportError:
+	info("snippets plugin not found, disabling snippets support")
 
 ui.GlobalArea.addWidget(lambda _: CONSOLE)
