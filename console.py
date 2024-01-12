@@ -14,6 +14,12 @@ from PySide6.QtCore import Qt, QUrl
 
 ICONS_PATH = PLUGIN_PATH / "icons"
 
+CSS = f"""
+a {{ text-decoration: none; }}
+a[href^="function"] {{ color: {ui.getThemeColor(bn.ThemeColor.CodeSymbolColor).name()}; }}
+a[href^="address"] {{ color: {ui.getThemeColor(bn.ThemeColor.AddressColor).name()}; }}
+"""
+
 def on_anchor_click(url: QUrl):
 	bv: bn.BinaryView = ui.UIContext.activeContext().getCurrentView().getData()
 
@@ -114,7 +120,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 				return
 
 			self.moveCursor(QTextCursor.End)
-			self.insertHtml("<br/>" + html)
+			self.insertHtml(f"<style>{CSS}</style><br/>{html}")
 			self.moveCursor(QTextCursor.End)
 		setattr(self.output, "appendHtml", appendHtml.__get__(self.output, QTextBrowser))
 
