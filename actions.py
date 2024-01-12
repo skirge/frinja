@@ -1,8 +1,9 @@
 from html import escape
 from typing import Any, Optional
 import binaryninja as bn
+import frida
 
-from .frida_launcher import FridaLauncher, jinja
+from .frida_launcher import FridaLauncher, jinja, FRIDA_RELOADER
 from .log import *
 from .console import CONSOLE
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON
@@ -12,8 +13,9 @@ from .helper import get_functions_by_tag, needs_settings, message_handler
 def show_help(bv: bn.BinaryView):
 	bv.show_markdown_report("Frinja Help", open(bn.user_plugin_path() + "/frinja/README.md").read())
 
-@alert_on_error
 def mark_hooked(bv: bn.BinaryView, func: bn.Function):
+	global FRIDA_RELOADER
+
 	# NOTE: Maybe rely on id instead of name?
 	if not bv.get_tag_type(HOOK_TAG_TYPE):
 		bv.create_tag_type(HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON)
@@ -23,16 +25,26 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 	else:
 		func.remove_user_function_tags_of_type(HOOK_TAG_TYPE)
 
+	try:
+		FRIDA_RELOADER()
+	except frida.InvalidOperationError:
+		FRIDA_RELOADER = lambda: None
+
 # Frida Start
 @needs_settings
 def frida_start(bv: bn.BinaryView):
+	global FRIDA_RELOADER
+
 	info("Launching hooker script")
 	# int is immutable so we have to use dict/list
 	state = { "depth": 0 }
 	targets = get_functions_by_tag(bv, HOOK_TAG_TYPE)
+
 	frida_launcher = FridaLauncher.from_template(bv, "hooker.js.j2", targets=targets)
 	frida_launcher.on_message_send = [on_frida_start(state)]
 	frida_launcher.start()
+
+	FRIDA_RELOADER = lambda: frida_launcher.replace_script_from_template("hooker.js.j2", targets=get_functions_by_tag(bv, HOOK_TAG_TYPE))
 
 @message_handler
 def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
