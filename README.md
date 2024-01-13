@@ -48,6 +48,7 @@ To do so a function comment should be added in the following format:
 @prehook: <prehook js code>
 @posthook: <posthook js code>
 @ret: <return value>
+@replace: <replace whole function with js code>
 ```
 
 The return value can be any kind of valid javascript expression

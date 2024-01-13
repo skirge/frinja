@@ -86,3 +86,31 @@ const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.star
 		{{ var }}
 	{%- endif -%}
 {%- endmacro %}
+
+{% macro type_translate(bn_type) -%}
+	{%- set bn_type = bn_type | string %}
+	{%- set type_mapping = {
+		"int8_t": "int8",
+		"uint8_t": "uint8",
+		"int16_t": "int16",
+		"uint16_t": "uint16",
+		"int32_t": "int32",
+		"uint32_t": "uint32",
+		"int64_t": "int64",
+		"uint64_t": "uint64",
+		"char": "char",
+		"wchar_t": "uint16",
+		"void": "void",
+		"float": "float",
+		"double": "double",
+		"size_t": "size_t"
+	} -%}
+
+	{%- set frida_type = type_mapping[bn_type] if bn_type in type_mapping else "pointer" -%}
+
+	{%- if bn_type.endswith('*') -%}
+		"pointer"
+	{%- else -%}
+		"{{ frida_type }}"
+	{%- endif -%}
+{%- endmacro %}
