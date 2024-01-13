@@ -66,7 +66,12 @@ def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 	elif msg["event"] == "return":
 		state["depth"] -= 1
 		indent = indent[:-2]
-		CONSOLE.output.appendHtml(f"{indent}╚ {link}(...) « {msg['retval']}")
+		retval = msg["retval"]
+
+		if "new_retval" in msg.keys():
+			retval = f'<span style="text-decoration: line-through">{retval}</span> ~> <b>{msg["new_retval"]}</b>'
+
+		CONSOLE.output.appendHtml(f"{indent}╚ {link}(...) « {retval}")
 
 	if state["depth"] <= 0:
 		state["depth"] = 0
@@ -75,7 +80,7 @@ def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 @alert_on_error
 @needs_settings
 def function_inspector(bv: bn.BinaryView, func: bn.Function):
-	info(f"Launching function inspector for {func.name}@{func.start}")
+	info(f"Launching function inspector for {func.name}@{hex(func.start)}")
 	frida_launcher = FridaLauncher.from_template(bv, "function_inspector.js.j2", func=func)
 	frida_launcher.on_message_send = [on_function_inspector(bv, func)]
 	frida_launcher.start()
@@ -83,16 +88,19 @@ def function_inspector(bv: bn.BinaryView, func: bn.Function):
 @message_handler
 def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
 	addr = bv.start + int(msg, 16)
-	block = func.get_basic_block_at(addr)
-	debug(f"Highlighting block {block}")
-	block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
+	debug(f"Highlighting block @ {hex(addr)}")
+
+	# The block in HLIL can't get highlighted - upstream bug https://github.com/Vector35/binaryninja-api/issues/2584
+	# block = func.get_basic_block_at(addr)
+	# block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
+	func.set_auto_instr_highlight(addr, bn.HighlightStandardColor.CyanHighlightColor)
 
 # Function Dumper
 @alert_on_error
 @needs_settings
 def function_dumper(bv: bn.BinaryView, func: bn.Function):
 	dump_data = []
-	info(f"Launching function dumper for {func.name}@{func.start}")
+	info(f"Launching function dumper for {func.name}@{hex(func.start)}")
 
 	def reporter():
 		info("Dumping complete - generating report")
@@ -108,7 +116,7 @@ def function_dumper(bv: bn.BinaryView, func: bn.Function):
 
 @message_handler
 def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: list):
-	if "return" in msg:
+	if "return" in msg.keys():
 		msg["return"] = int(msg["return"], 16)
 	dump_data.append(msg)
 
@@ -120,10 +128,20 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 		"callList": [],
 		"modules": None,
 	}
-	info(f"Launching devi analysis for {func.name}@{func.start}")
+	info(f"Launching devi analysis for {func.name}@{hex(func.start)}")
 
-	def reporter():
-		frida_launcher.join()
+	frida_launcher = FridaLauncher.from_template(bv, "devi.js.j2", func=func)
+	frida_launcher.on_message_send = [on_devi(bv, func, dump_data)]
+	frida_launcher.start()
+
+@message_handler
+def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: dict):
+	print(msg)
+	if "callList" in msg.keys():
+		dump_data["callList"].extend(msg["callList"])
+	elif "moduleMap" in msg.keys():
+		dump_data["modules"] = msg["moduleMap"]
+	elif "deviFinished" in msg.keys():
 		info("Analysis complete - calling devi plugin")
 
 		import murx_devi_binja
@@ -134,19 +152,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 				pass
 
 		devi = DeviMuted(bv)
-		devi.devirtualize_calls(dump_data["calls"], dump_data["modules"])
-
-	frida_launcher = FridaLauncher.from_template(bv, "devi.js.j2", on_devi(bv, func, dump_data), func=func)
-	frida_launcher.on_message_send = [on_devi(bv, func, dump_data)]
-	frida_launcher.on_end.append(reporter)
-	frida_launcher.start()
-
-@message_handler
-def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: dict):
-	if "callList" in msg.keys():
-		dump_data["callList"].extend(msg["callList"])
-	elif "moduleMap" in msg.keys():
-		dump_data["modules"] = msg["moduleMap"]
+		devi.devirtualize_calls(dump_data["callList"], dump_data["modules"])
 
 # Log Sniffer
 @needs_settings

@@ -39,7 +39,10 @@ Interceptor.attach({{ func.name }}_ptr, {
 			"event": "return",
 			"function": "{{ func.name }}",
 			"address": {{ "%#x" % func.start }},
-			"retval": {{ new_retval if "@ret" in func.comment else "retval" }}
+			"retval": retval,
+			{% if "@ret" in func.comment %}
+			"new_retval": {{ new_retval }},
+			{% endif %}
 		});
 
 		{%- if "@posthook" in func.comment %}

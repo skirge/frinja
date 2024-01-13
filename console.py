@@ -163,8 +163,8 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.input.clear()
 		self.output.appendHtml(f"> {text}")
 
-		result = self._evaluate_cb(text)
-		self.handle_result(result)
+		# result = self._evaluate_cb(text)
+		# self.handle_result(result)
 		@alert_on_error
 		def eval_bg():
 			result = self._evaluate_cb(text)
@@ -231,7 +231,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 				# trim_amount = 6 if self._runtime == "v8" else 7
 				trimmed_stack = error["stack"].split("\n")[message_len:-6]
 				if len(trimmed_stack) > 0:
-					output += "\n" + "\n".join(trimmed_stack)
+					output += "<br/>" + "<br/>".join(trimmed_stack)
 
 			self.output.appendHtml(line)
 			return
@@ -246,16 +246,16 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 			self.output.appendHtml(escape(json.dumps(result[1], sort_keys=True, indent=4, separators=(",", ": "))))
 
 	def handle_log(self, level: str, text: str):
-		line = text
+		line = escape(text).replace("\n", "<br/>")
 
 		if level == "debug":
-			line = f'<span style="color: gray;"><b>[d]</b></span> <i>{escape(text)}</i>'
+			line = f'<span style="color: gray;"><b>[d]</b></span> <i>{line}</i>'
 		elif level == "info":
-			line = f'<span style="color: blue;"><b>[+]</b></span> {escape(text)}'
+			line = f'<span style="color: blue;"><b>[+]</b></span> {line}'
 		elif level == "warning":
-			line = f'<span style="color: yellow;"><b>[!]</b></span> {escape(text)}'
+			line = f'<span style="color: yellow;"><b>[!]</b></span> {line}'
 		elif level == "error":
-			line = f'<span style="color: red;"><b>[x]</b> {escape(text)}</span>'
+			line = f'<span style="color: red;"><b>[x]</b> {line}</span>'
 
 		self.output.appendHtml(line)
 
