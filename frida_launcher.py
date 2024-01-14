@@ -175,15 +175,15 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			time.sleep(1)
 
 	def _finalizer(self):
-		global FRIDA_RELOADER
+		# global FRIDA_RELOADER
 		self.progress = "Frinja cleaning up"
 
-		FRIDA_RELOADER = lambda: None
+		# FRIDA_RELOADER = lambda: None
 		bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("<br/>=== Script finished ===<br/>"))
 		for f in self.on_end:
 			bn.execute_on_main_thread(f)
 
-		SETTINGS.store(self.bv)
+		# SETTINGS.store(self.bv)
 
 	def finish(self):
 		self._finalizer()
