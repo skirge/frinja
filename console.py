@@ -9,7 +9,7 @@ from .helper import PLUGIN_PATH
 from html import escape
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
 from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout, QPushButton
-from PySide6.QtGui import QTextCursor, QIcon
+from PySide6.QtGui import QTextCursor, QIcon, QAction, QContextMenuEvent
 from PySide6.QtCore import Qt, QUrl
 
 ICONS_PATH = PLUGIN_PATH / "icons"
@@ -93,6 +93,23 @@ class HistoryLineEdit(QLineEdit):
 		SETTINGS.console_history = self.history
 
 
+class ConsoleTextBrowser(QTextBrowser):
+	def contextMenuEvent(self, event: QContextMenuEvent):
+		menu = self.createStandardContextMenu()
+		menu.addSeparator()
+
+		# Add custom action to clear the text
+		clearAction = QAction("Clear Console", self)
+		clearAction.triggered.connect(self.clear_text)
+		menu.addAction(clearAction)
+
+		# Display the context menu
+		menu.exec(event.globalPos())
+
+	def clear_text(self):
+		self.clear()
+
+
 class FridaConsoleWidget(ui.GlobalAreaWidget):
 	_evaluate_cb: Optional[Callable[[str], Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]]] = None
 	_stop_cb: Optional[Callable[[], None]] = None
@@ -108,7 +125,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 		layout = QVBoxLayout()
 
-		self.output = QTextBrowser(self)
+		self.output = ConsoleTextBrowser(self)
 		self.output.setOpenLinks(False)
 		self.output.setOpenExternalLinks(False)
 		self.output.anchorClicked.connect(on_anchor_click)
@@ -150,7 +167,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		layout.addLayout(hbox)
 		self.setLayout(layout)
 
-		self.session_end()
+		self.session_end(showFinished=False)
 
 	@alert_on_error
 	def on_input_handler(self):
@@ -174,8 +191,8 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 
 	def on_play_stop(self):
 		if self._evaluate_cb:
-			self.session_end()
 			self._stop_cb()
+			self.session_end()
 		else:
 			bv = ui.UIContext.activeContext().getCurrentView().getData()
 			ctx = bn.PluginCommandContext(bv)
@@ -211,7 +228,7 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.play_stop.setToolTip("Stop frida session")
 		# self.save.show()
 
-	def session_end(self):
+	def session_end(self, showFinished: bool = True):
 		self.input.setReadOnly(True)
 		self.input.setText("Please use the `Start Hooker` command to start a session")
 		self._evaluate_cb = None
@@ -220,6 +237,9 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.play_stop.setIcon(QIcon(str(ICONS_PATH / "play-solid.svg")))
 		self.play_stop.setToolTip("Start frida session")
 		self.save.hide()
+
+		if showFinished:
+			self.output.appendHtml("<br/>=== Script finished ===<br/>")
 
 	def handle_result(self, result: Union[bytes, Mapping[Any, Any], Tuple[str, bytes]]):
 		if result[0] == "error":

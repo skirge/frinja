@@ -18,7 +18,9 @@ def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 
 	# NOTE: Maybe rely on id instead of name?
 	if not bv.get_tag_type(HOOK_TAG_TYPE):
+		state = bv.begin_undo_actions()
 		bv.create_tag_type(HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON)
+		bv.commit_undo_actions(state)
 
 	if not func.get_function_tags(False, HOOK_TAG_TYPE):
 		func.add_tag(HOOK_TAG_TYPE, "Hook function calls", None)

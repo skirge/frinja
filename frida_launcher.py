@@ -1,3 +1,4 @@
+from threading import Thread
 import time
 from typing import List, Optional
 import frida
@@ -34,6 +35,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	session: Optional[frida.core.Session]
 	script: Optional[frida.core.Script]
 	evaluate: Optional[Callable[[str], str]]
+	pid: int
 
 	def __init__(self, bv: bn.BinaryView, script: str):
 		global FRIDA_RELOADER
@@ -44,6 +46,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		self.bv = bv
 		self.script = None
 		self.session = None
+		self.pid = 0
 		self.evaluate = None
 		SETTINGS.restore(bv)
 
@@ -79,7 +82,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			self.progress = "Reloading script"
 			self.script.unload()
 
-			bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("<br/>=== Script reloaded ===<br/>"))
+			bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("=== Script reloaded ==="))
 
 		# Print the script (very useful for debugging)
 		debug("\n".join([f"{n + 1}: {l}" for n, l in enumerate(script.split("\n"))]))
@@ -90,9 +93,9 @@ class FridaLauncher(bn.BackgroundTaskThread):
 
 		# Intialize the callback handlers
 		def on_destroyed():
+			self.script = None
 			for f in self.on_destroyed:
 				bn.execute_on_main_thread(f)
-			# self.cancel()
 
 		def on_message(msg: frida.core.ScriptMessage, data: Optional[bytes]):
 			for f in self.on_message:
@@ -126,37 +129,24 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			info("Detached from process")
 			for f in self.on_detached:
 				bn.execute_on_main_thread(lambda: f(reason))
+
 			self.cancel()
 
-		# Add the session & script finalizer
-		def finish_script():
-			if SETTINGS.exec_action != ExecutionAction.SPAWN:
-				self.script.unload()
-				self.session.detach()
-			else:
-				try:
-					SETTINGS.device.kill(pid)
-					info("Process killed")
-				except frida.ProcessNotFoundError:
-					info("Process already finished")
-		self.on_end.append(finish_script)
-
 		# Find (or create) the process
-		pid = 0
 		if SETTINGS.exec_action == ExecutionAction.SPAWN:
 			# TODO: Allow tinkering with the env, stdio and cwd
-			pid = SETTINGS.device.spawn(SETTINGS.file_target, SETTINGS.cmdline.split(" "))
-			info(f"Spawned {SETTINGS.file_target} with arguments `{SETTINGS.cmdline}` that got PID {pid}")
+			self.pid = SETTINGS.device.spawn(SETTINGS.file_target, SETTINGS.cmdline.split(" "))
+			info(f"Spawned {SETTINGS.file_target} with arguments `{SETTINGS.cmdline}` that got PID {self.pid}")
 		elif SETTINGS.exec_action == ExecutionAction.ATTACH_NAME:
-			pid = SETTINGS.attach_name
+			self.pid = SETTINGS.attach_name
 		elif SETTINGS.exec_action == ExecutionAction.ATTACH_PID:
-			pid = SETTINGS.attach_pid
+			self.pid = SETTINGS.attach_pid
 		else:
 			alert("Frinja: Unknown execution action")
-		info(f"Attaching to {pid}")
+		info(f"Attaching to {self.pid}")
 
 		# Initialize the frida session
-		self.session = SETTINGS.device.attach(pid)
+		self.session = SETTINGS.device.attach(self.pid)
 		self.session.on("detached", on_detached)
 
 		# Load the script
@@ -164,7 +154,7 @@ class FridaLauncher(bn.BackgroundTaskThread):
 
 		# Resume the process and connect to the REPL
 		if SETTINGS.exec_action == ExecutionAction.SPAWN:
-			SETTINGS.device.resume(pid)
+			SETTINGS.device.resume(self.pid)
 
 		for f in self.on_start:
 			bn.execute_on_main_thread(lambda: f(self.evaluate, self.cancel))
@@ -174,12 +164,30 @@ class FridaLauncher(bn.BackgroundTaskThread):
 				break
 			time.sleep(1)
 
+		self.session.detach()
+
 	def _finalizer(self):
+		if self.finished:
+			return
+
 		# global FRIDA_RELOADER
 		self.progress = "Frinja cleaning up"
+		import traceback; traceback.print_stack()
+
+		if SETTINGS.exec_action != ExecutionAction.SPAWN:
+			if self.session is not None and not self.session.is_detached:
+				# Frida internally does frida_session_detach_sync which is a blocking call
+				# so if we stop in the middle of a hooked function we have to wait till it returns
+				self.session.detach()
+				return
+		else:
+			try:
+				SETTINGS.device.kill(self.pid)
+				info("Process killed")
+			except frida.ProcessNotFoundError:
+				info("Process already finished")
 
 		# FRIDA_RELOADER = lambda: None
-		bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("<br/>=== Script finished ===<br/>"))
 		for f in self.on_end:
 			bn.execute_on_main_thread(f)
 
@@ -188,3 +196,6 @@ class FridaLauncher(bn.BackgroundTaskThread):
 	def finish(self):
 		self._finalizer()
 		super().finish()
+
+	def cancel(self):
+		return super().cancel()
