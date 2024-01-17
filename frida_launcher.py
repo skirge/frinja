@@ -172,7 +172,6 @@ class FridaLauncher(bn.BackgroundTaskThread):
 
 		# global FRIDA_RELOADER
 		self.progress = "Frinja cleaning up"
-		import traceback; traceback.print_stack()
 
 		if SETTINGS.exec_action != ExecutionAction.SPAWN:
 			if self.session is not None and not self.session.is_detached:

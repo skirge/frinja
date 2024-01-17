@@ -95,6 +95,8 @@ class HistoryLineEdit(QLineEdit):
 
 class ConsoleTextBrowser(QTextBrowser):
 	def contextMenuEvent(self, event: QContextMenuEvent):
+		self.setUndoRedoEnabled(False)
+		self.setReadOnly(True)
 		menu = self.createStandardContextMenu()
 		menu.addSeparator()
 

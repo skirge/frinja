@@ -1,7 +1,7 @@
 {% macro function_header(bv, func) %}
 // {{ "%#x" % func.start }}: {{ func.type.return_value.__str__() }} {{ func.name }}({{ func.type.parameters | join(", ") }})
-const {{ func.name }}_module = Process.getModuleByName("{{ bv.file.original_filename.split("/") | last }}").base;
-const {{ func.name }}_ptr = ptr({{ func.name }}_module.add({{ "%#x" % (func.start - bv.start) }}));
+const func_{{ func.start }}_module = Process.getModuleByName("{{ bv.file.original_filename.split("/") | last }}").base;
+const func_{{ func.start }}_ptr = ptr(func_{{ func.start }}_module.add({{ "%#x" % (func.start - bv.start) }}));
 {% endmacro %}
 
 {% macro argparse(param, var) -%}

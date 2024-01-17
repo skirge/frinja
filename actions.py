@@ -7,11 +7,11 @@ from .frida_launcher import FridaLauncher, jinja, FRIDA_RELOADER
 from .log import *
 from .console import CONSOLE
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON
-from .helper import get_functions_by_tag, needs_settings, message_handler
+from .helper import get_functions_by_tag, needs_settings, message_handler, PLUGIN_PATH
 
 @alert_on_error
 def show_help(bv: bn.BinaryView):
-	bv.show_markdown_report("Frinja Help", open(bn.user_plugin_path() + "/frinja/README.md").read())
+	bv.show_markdown_report("Frinja Help", open(PLUGIN_PATH / "README.md").read())
 
 def mark_hooked(bv: bn.BinaryView, func: bn.Function):
 	global FRIDA_RELOADER

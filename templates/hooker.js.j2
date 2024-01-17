@@ -3,13 +3,13 @@
 {%- for func in targets -%}
 {{ function_header(bv, func) }}
 {% if "@replace" in func.comment -%}
-function {{ func.name }}_replace({{ func.parameter_vars | map(attribute="name") | join(", ") }}) {
+function func_{{ func.start }}_replace({{ func.parameter_vars | map(attribute="name") | join(", ") }}) {
 	{{ func.comment.split("@replace:")[1].split("\n")[0].strip() }}
 }
-Interceptor.replace({{ func.name }}_ptr, new NativeCallback({{ func.name }}_replace, {{ type_translate(func.return_type) }}, [{% for p in func.parameter_vars %}{{ type_translate(p.type) }}, {% endfor %}]))
+Interceptor.replace(func_{{ func.start }}_ptr, new NativeCallback(func_{{ func.start }}_replace, {{ type_translate(func.return_type) }}, [{% for p in func.parameter_vars %}{{ type_translate(p.type) }}, {% endfor %}]))
 {% elif "@attach" in func.comment -%}
 {% else -%}
-Interceptor.attach({{ func.name }}_ptr, {
+Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter: function(args) {
 		send({
 			"event": "call",
