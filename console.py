@@ -2,13 +2,15 @@ from threading import Thread
 import binaryninjaui as ui
 import json
 import frida
+import time
+import asyncio
 
 from .log import *
 from .settings import SETTINGS
 from .helper import PLUGIN_PATH
 from html import escape
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
-from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout, QPushButton
+from PySide6.QtWidgets import QVBoxLayout, QTextBrowser, QLineEdit, QLabel, QHBoxLayout, QPushButton, QWidget
 from PySide6.QtGui import QTextCursor, QIcon, QAction, QContextMenuEvent
 from PySide6.QtCore import Qt, QUrl
 
@@ -94,6 +96,17 @@ class HistoryLineEdit(QLineEdit):
 
 
 class ConsoleTextBrowser(QTextBrowser):
+	_last_update: float
+	_queue: asyncio.Queue
+	_throttled_update: Optional[asyncio.Task]
+
+	def __init__(self, parent: QWidget | None = ...) -> None:
+		super().__init__(parent)
+
+		self._last_update = 0
+		self._queue = asyncio.Queue()
+		self._throttled_update = None
+
 	def contextMenuEvent(self, event: QContextMenuEvent):
 		self.setUndoRedoEnabled(False)
 		self.setReadOnly(True)
@@ -107,6 +120,45 @@ class ConsoleTextBrowser(QTextBrowser):
 
 		# Display the context menu
 		menu.exec(event.globalPos())
+
+	def appendHtml(self, html: str):
+		if not isinstance(html, str):
+			alert(f"appendHtml called with non-string argument: {str(html)}")
+			return
+
+		if self._throttled_update is not None and not self._throttled_update.done():
+			self._queue.put_nowait(html)
+
+		if time.time() - self._last_update < 0.35:
+			self._queue.put_nowait(html)
+
+			if not self._throttled_update:
+				self._throttled_update = asyncio.create_task(self._appendHtml_throttler(html))
+		else:
+			self.moveCursor(QTextCursor.End)
+			self.insertHtml(f"<style>{CSS}</style><br/>{html}")
+			self.moveCursor(QTextCursor.End)
+
+			self._last_update = time.time()
+
+	async def _appendHtml_throttler(self, html: str):
+		html = ""
+		await asyncio.sleep(0.3)
+		while True:
+			try:
+				html += self._queue.get_nowait() + "<br/>"
+			except asyncio.QueueEmpty:
+				break
+
+		html = html[:-len("<br/>")]
+		self._throttled_update = None
+
+		def callback():
+			self._throttled_update = None
+			self.appendHtml(html)
+			self._last_update = time.time()
+
+		bn.execute_on_main_thread(callback)
 
 	def clear_text(self):
 		self.clear()
@@ -132,16 +184,6 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.output.setOpenExternalLinks(False)
 		self.output.anchorClicked.connect(on_anchor_click)
 		layout.addWidget(self.output)
-
-		def appendHtml(self: QTextBrowser, html: str):
-			if not isinstance(html, str):
-				alert(f"appendHtml called with non-string argument: {str(html)}")
-				return
-
-			self.moveCursor(QTextCursor.End)
-			self.insertHtml(f"<style>{CSS}</style><br/>{html}")
-			self.moveCursor(QTextCursor.End)
-		setattr(self.output, "appendHtml", appendHtml.__get__(self.output, QTextBrowser))
 
 		hbox = QHBoxLayout()
 		hbox.addWidget(QLabel(">"))
