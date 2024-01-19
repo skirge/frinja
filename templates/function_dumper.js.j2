@@ -2,7 +2,7 @@
 {{ function_header(bv, func) }}
 let index = 0;
 
-Interceptor.attach({{ func.name }}_ptr, {
+Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter(args) {
 		if (index > 50) {
 			Interceptor.detachAll();
@@ -12,7 +12,7 @@ Interceptor.attach({{ func.name }}_ptr, {
 		this.index = index;
 		send({
 			"context": this.context,
-			"return": this.returnAddress.sub({{ func.name }}_module),
+			"return": this.returnAddress.sub(func_{{ func.start }}_module),
 			"depth": this.depth,
 			"thread_id": this.threadId,
 			"index": index++,

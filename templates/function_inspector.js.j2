@@ -3,14 +3,14 @@
 const basic_blocks = [
 	{% for bb in func.basic_blocks -%}
 		{%- if loop.index != 1 -%}
-		{{ func.name }}_module.add({{ "%#x" % (bb.start - bv.start) }}),
+		func_{{ func.start }}_module.add({{ "%#x" % (bb.start - bv.start) }}),
 		{%- endif %}
 	{% endfor %}
 ];
 
 let hooked_blocks = {}
 
-Interceptor.attach({{ func.name }}_ptr, {
+Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter: function(args) {
 		for (const block of basic_blocks) {
 			const instr = Instruction.parse(block)
@@ -44,7 +44,7 @@ Interceptor.attach({{ func.name }}_ptr, {
 Process.setExceptionHandler(args => {
 	if(args.type === "breakpoint"){
 		// Send the basic block offset to the python script as we don't know the module base address
-		send(args.address.sub({{ func.name }}_module));
+		send(args.address.sub(func_{{ func.start }}_module));
 
 		args.context["pc"] = hooked_blocks[args.address];
 		return true;

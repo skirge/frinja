@@ -6,7 +6,7 @@
 {%- from "_macros.js.j2" import function_header -%}
 {{ function_header(bv, func) }}
 const myModule = Process.getModuleByName("{{ bv.file.original_filename.split("/") | last }}");
-const symbolAddress = {{ func.name }}_ptr;
+const symbolAddress = func_{{ func.start }}_ptr;
 const debug = "True";
 
 if (symbolAddress === undefined) {

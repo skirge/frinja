@@ -13,7 +13,7 @@ const func_{{ func.start }}_ptr = ptr(func_{{ func.start }}_module.add({{ "%#x" 
 	{%- endfor -%}
 
 	{%- if type == "char*" -%}
-		{{ var }}.readAnsiString()
+		{{ var }}.readCString()
 	{%- elif type == "wchar_t*" -%}
 		{{ var }}.readUtf16String()
 	{%- elif type == "int" -%}

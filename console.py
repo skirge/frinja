@@ -285,9 +285,15 @@ class FridaConsoleWidget(ui.GlobalAreaWidget):
 		self.output.appendHtml(escape("< " + str(msg)))
 
 	def handle_error(self, msg: frida.core.ScriptErrorMessage):
-		self.output.appendHtml(f"<span style='color: red;'><b>{escape(msg['description'])}</b></span>")
-		if msg["stack"]:
-			self.output.appendHtml("<span style='color: red;>" + "<br/>".join(escape(msg["stack"]).split("\\n")) + "</span>")
+		for k in msg.keys():
+			try:
+				msg[k] = escape(msg[k])
+			except Exception:
+				pass
+
+		self.output.appendHtml(f"<span style='color: red;'><b>{msg['description']}</b></span>")
+		if "stack" in msg.keys():
+			self.output.appendHtml("<span style='color: red;>" + "<br/>".join(msg["stack"].split("\\n")) + "</span>")
 
 
 CONSOLE = FridaConsoleWidget()
