@@ -121,27 +121,24 @@ class ConsoleTextBrowser(QTextBrowser):
 		# Display the context menu
 		menu.exec(event.globalPos())
 
-	def appendHtml(self, html: str):
+	def appendHtml(self, html: str, sync: bool = False):
 		if not isinstance(html, str):
 			alert(f"appendHtml called with non-string argument: {str(html)}")
 			return
 
-		if self._throttled_update is not None and not self._throttled_update.done():
+		if not sync and self._throttled_update is not None and not self._throttled_update.done():
 			self._queue.put_nowait(html)
-
-		if time.time() - self._last_update < 0.35:
+		elif not sync and time.time() - self._last_update < 0.35:
 			self._queue.put_nowait(html)
 
 			if not self._throttled_update:
-				self._throttled_update = asyncio.create_task(self._appendHtml_throttler(html))
+				self._throttled_update = asyncio.create_task(self._appendHtml_throttler())
 		else:
-			self.moveCursor(QTextCursor.End)
 			self.insertHtml(f"<style>{CSS}</style><br/>{html}")
-			self.moveCursor(QTextCursor.End)
 
 			self._last_update = time.time()
 
-	async def _appendHtml_throttler(self, html: str):
+	async def _appendHtml_throttler(self):
 		html = ""
 		await asyncio.sleep(0.3)
 		while True:
@@ -155,8 +152,7 @@ class ConsoleTextBrowser(QTextBrowser):
 
 		def callback():
 			self._throttled_update = None
-			self.appendHtml(html)
-			self._last_update = time.time()
+			self.appendHtml(html, sync=True)
 
 		bn.execute_on_main_thread(callback)
 
