@@ -11,7 +11,7 @@ const func_{{ func.start }}_ptr = ptr(func_{{ func.start }}_module.add({{ "%#x" 
 		{%- set var = var + ".readPointer()" -%}
 		{%- set type = type[:-1] -%}
 	{%- endfor -%}
-
+	
 	{%- if type == "char*" -%}
 		{{ var }}.readCString()
 	{%- elif type == "wchar_t*" -%}
@@ -48,38 +48,6 @@ const func_{{ func.start }}_ptr = ptr(func_{{ func.start }}_module.add({{ "%#x" 
 		{{ var }}.toInt32()
 	{%- elif type == "size_t" -%}
 		{{ var }}.toInt32()
-	{%- elif type == "int*" -%}
-		{{ var }}.readInt()
-	{%- elif type == "uint*" -%}
-		{{ var }}.readUInt()
-	{%- elif type == "float*" -%}
-		{{ var }}.readFloat()
-	{%- elif type == "double*" -%}
-		{{ var }}.readDouble()
-	{%- elif type == "bool*" -%}
-		{{ var }}.readU8()
-	{%- elif type == "char*" -%}
-		{{ var }}.readU8()
-	{%- elif type == "wchar_t*" -%}
-		{{ var }}.readU16()
-	{%- elif type == "int8_t*" -%}
-		{{ var }}.readS8()
-	{%- elif type == "uint8_t*" -%}
-		{{ var }}.readU8()
-	{%- elif type == "int16_t*" -%}
-		{{ var }}.readS16()
-	{%- elif type == "uint16_t*" -%}
-		{{ var }}.readU16()
-	{%- elif type == "int32_t*" -%}
-		{{ var }}.readS32()
-	{%- elif type == "uint32_t*" -%}
-		{{ var }}.readU32()
-	{%- elif type == "int64_t*" -%}
-		{{ var }}.readS64()
-	{%- elif type == "uint64_t*" -%}
-		{{ var }}.readU64()
-	{%- elif type == "size_t*" -%}
-		{{ var }}.readU64()
 	{%- elif type.endswith("*") -%}
 		{{ var }}.readPointer()
 	{%- else -%}
