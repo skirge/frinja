@@ -56,6 +56,18 @@ Interceptor.attach(Module.getExportByName(null, 'open'), {
 
 })
 
+Interceptor.attach(Module.getExportByName(null, 'socket'), {
+
+  onLeave(retval) {
+      if(retval.toInt32()<0) {
+        console.log("-- cannot open socket");
+        return
+      }
+	  fileOpens[retval.toString()] = "NETWORK";
+  }
+
+})
+
 Interceptor.attach(Module.getExportByName(null, 'close'), {
   onEnter(args) {
       const fd = args[0].toString();
@@ -65,7 +77,7 @@ Interceptor.attach(Module.getExportByName(null, 'close'), {
 
 let fileReads = {};
 
-Interceptor.attach(Module.getExportByName(null, 'read'), {
+const handleRead = {
   onEnter(args) {
 
     // Save arguments for processing in onLeave.
@@ -86,7 +98,16 @@ Interceptor.attach(Module.getExportByName(null, 'read'), {
     fileReads[buf]  = readEvent;
   },
 
-})
+}
+
+const inputFunctions = ['read', 'recv', 'recvfrom'];
+
+for(const inputf of inputFunctions) {
+    if(Module.findExportByName(null,inputf)) {
+        console.log("[*] hooking input symbol:" + inputf);
+        Interceptor.attach(Module.getExportByName(null, inputf), handleRead);
+    }
+}
 
 const registers = {{ bv.arch.standalone_platform.default_calling_convention.int_arg_regs+bv.arch.standalone_platform.default_calling_convention.callee_saved_regs+bv.arch.standalone_platform.default_calling_convention.caller_saved_regs }}
 
@@ -97,6 +118,7 @@ function telescope(ctx, taintedBuffers, heapChunks) {
 try {
             const regv = ctx[reg];
             var ptrValue = regv;
+            var depth = 0;
             do {
                 try {
                     const d = {};
@@ -107,7 +129,11 @@ try {
                         d.string = cstring;
                     } finally {}
                     try {
-                        var hd = hexdump(ptrValue, {length: 16, ansi: false, header: false});
+                        let length = 16;
+                        if(memAllocs[ptrValue]) {
+                            length = Math.min(16, memAllocs[ptrValue].size);
+                        }
+                        var hd = hexdump(ptrValue, {length: length, ansi: false, header: false});
                         d.hexdump = hd;
                     } finally {}
                     try {
@@ -121,17 +147,18 @@ try {
                         taintedBuffers[ptrValue] = fileReads[ptrValue];
                     var oldPtr = ptrValue;
                     ptrValue = ptrValue.readPointer();
-                    if(!derefs[ptrValue]) {
+                    if(ptrValue != oldPtr) { // avoid recursion
                         derefs[oldPtr].ptr = ptrValue;
                         success = true;
                     }
+                    depth++;
             } catch ({ name, message }) {
                 /*
                 console.log(name);
                 console.log(message);
                 */
             }
-            } while(success);
+            } while(success && depth < 15);
         } catch ({ name, message }) {
             /*
             console.log(name);
