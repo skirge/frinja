@@ -97,6 +97,7 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 	# block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
 	func.set_auto_instr_highlight(addr, bn.HighlightStandardColor.CyanHighlightColor)
 
+
 # Function Dumper
 @alert_on_error
 @needs_settings
@@ -146,10 +147,10 @@ def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Functi
 	elif "deviFinished" in msg.keys():
 		info("Analysis complete - calling devi plugin")
 
-		import murx_devi_binja
+		import devi as bndevi
 
 		# Disable the load_virtual_calls function that shows the load dialog
-		class DeviMuted(murx_devi_binja.binja_devi):
+		class DeviMuted(bndevi.binja_devi):
 			def load_virtual_calls(self):
 				pass
 

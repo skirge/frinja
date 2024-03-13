@@ -1,6 +1,6 @@
 import binaryninja as bn
 import binaryninjaui as ui
-import Vector35_snippets as snippets
+import bnsnippets as snippets
 from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import QFileInfo
 from PySide6.QtGui import QKeySequence
