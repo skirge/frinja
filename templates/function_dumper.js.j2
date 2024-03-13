@@ -1,17 +1,165 @@
 {%- from "_macros.js.j2" import argparse, function_header -%}
 {{ function_header(bv, func) }}
+
 let index = 0;
+let memAllocs = {};
+
+
+function getBacktrace(context) {
+const module = Process.getModuleByName("SAVI");
+  //return Thread.backtrace(context, Backtracer.ACCURATE).filter((x) => (x >= module.base && x <= (module.base + module.size))).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
+  return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
+}
+
+const sym_ptr = Module.getExportByName(null, 'malloc');
+	Interceptor.attach(sym_ptr, {
+
+		onEnter(args) {
+        this.size = args[0];
+    },
+
+		onLeave(retval) {
+        const allocEvent = {};
+        allocEvent["buf"] = retval.toString();
+        allocEvent["size"] = this.size;
+        allocEvent["backtrace"] = getBacktrace(this.context);
+        memAllocs[retval.toString()] =  allocEvent;
+    }
+});
+
+const free_ptr = Module.getExportByName(null, 'free');
+
+Interceptor.attach(free_ptr, {
+	onEnter(args) {
+      const memPtr = args[0].toString();
+        delete memAllocs[memPtr];
+        if(fileReads.hasOwnProperty(memPtr)) {
+            delete fileReads[memPtr];
+        }
+    }
+
+});
+
+
+let fileOpens = {};
+
+Interceptor.attach(Module.getExportByName(null, 'open'), {
+  onEnter(args) {
+    this.path = args[0].readUtf8String(); // pathname
+  },
+
+  onLeave(retval) {
+      if(retval.toInt32()<0) {
+        console.log("-- cannot open:[" + this.path + "]");
+        return
+      }
+	  fileOpens[retval.toString()] = this.path;
+  }
+
+})
+
+Interceptor.attach(Module.getExportByName(null, 'close'), {
+  onEnter(args) {
+      const fd = args[0].toString();
+      delete fileOpens[fd];
+  },
+})
+
+let fileReads = {};
+
+Interceptor.attach(Module.getExportByName(null, 'read'), {
+  onEnter(args) {
+
+    // Save arguments for processing in onLeave.
+	  const readEvent = {};
+
+        const fd = args[0].toString();
+        const buf = args[1].toString();
+        const size = args[2].toString();
+
+        if(!fileOpens.hasOwnProperty(fd)) {
+            console.log('[!] Unknown fd ' + fd);
+        }
+        //console.log('[*] reading from fd:[' + fd + '], path:[' + fileOpens[fd] + ']');
+        readEvent["size"] = size;
+    readEvent["path"] = fileOpens[fd];
+    readEvent["backtrace"] = getBacktrace(this.context);
+
+    fileReads[buf]  = readEvent;
+  },
+
+})
+
+const registers = [ "pc","sp","rax","rcx","rdx","rbx","rbp","rsi","rdi","r8","r9","r10","r11","r12","r13","r14","r15" ]
+
+function telescope(ctx, taintedBuffers, heapChunks) {
+    let derefs = {};
+
+    for(const reg of registers) {
+try {
+            const regv = ctx[reg];
+            var ptrValue = regv;
+            do {
+                try {
+                    const d = {};
+                    d.string = "";
+                    d.hexdump = "";
+                    try {
+                        var cstring = ptrValue.readCString();
+                        d.string = cstring;
+                    } finally {}
+                    try {
+                        var hd = hexdump(ptrValue, {length: 16, ansi: false, header: false});
+                        d.hexdump = hd;
+                    } finally {}
+                    try {
+                        var sym = DebugSymbol.fromAddress(ptrValue);
+                        d.symbol = sym.name;
+                    } finally {}
+                    derefs[ptrValue] = d;
+					if(memAllocs[ptrValue])
+                        heapChunks[ptrValue] = memAllocs[ptrValue];
+                    if(fileReads[ptrValue])
+                        taintedBuffers[ptrValue] = fileReads[ptrValue];
+                    var oldPtr = ptrValue;
+                    ptrValue = ptrValue.readPointer();
+                    derefs[oldPtr].ptr = ptrValue;
+                    success = true;
+            } catch ({ name, message }) {
+                /*
+                console.log(name);
+                console.log(message);
+                */
+            }
+            } while(success);
+        } catch ({ name, message }) {
+            /*
+            console.log(name);
+            console.log(message);
+            */
+        }
+
+    }
+    return derefs;
+}
 
 Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter(args) {
+        console.log("[*] Entering hooked function");
 		if (index > 50) {
 			Interceptor.detachAll();
 			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${index - 1}), detaching all intercepts`);
 		}
 
 		this.index = index;
+
+    const buffers = {}
+    const heap = {}
+    const derefs = telescope(this.context, buffers, heap);
+
 		send({
 			"context": this.context,
+      "backtrace" : getBacktrace(this.context),
 			"return": this.returnAddress.sub(func_{{ func.start }}_module),
 			"depth": this.depth,
 			"thread_id": this.threadId,
@@ -21,14 +169,29 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 					{%- set index = loop.index0 | string -%}
 					"{{ param.name }}": {{- argparse(param, "args[" + index + "]") -}},
 				{% endfor %}
-			}
+			},
+      "fileReads": buffers,
+      "fds" : fileOpens,
+      "heap" : heap,
+      "pointers" : derefs
+
 		})
+
 	},
 	onLeave(retval) {
+        console.log("[*] Leaving hooked function");
+    const buffers = {}
+    const heap = {}
+    const derefs = telescope(this.context, buffers, heap);
 		send({
 			"context": this.context ? this.context : {},
+      "backtrace" : {},
 			"retval": retval ? retval : "",
 			"index": this.index,
+             "fileReads": buffers,
+      "fds" : fileOpens,
+       "heap" : heap,
+      "pointers" : derefs
 		})
 	}
 });

@@ -1,3 +1,83 @@
+{%- macro backtrace(bt) -%}
+{%- for entry in bt %}
+{%- set addr = entry | int %}
+{%- set sym = bv.get_functions_containing(bv.start + addr) %}
+{%- for func in sym %}
+- {{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
+{%- endfor %}
+{%- endfor -%}
+{%- endmacro %}
+
+{% macro telescope(frame, value, key) -%}
+{%- if value in frame["pointers"].keys() -%}
+{%- if key %}
+### {{ key }}
+{% endif %}
+{%- set pv = frame["pointers"][value] %}
+{%- if 'symbol' in pv -%}
+- `{{value }}` ({{ pv['symbol'] }})
+{%- else -%}
+- `{{ value }}`
+{%- endif -%}
+: "`{{ pv["string"] -}}`" : `{{ pv["hexdump"] }}`
+{% if value in frame["heap"].keys() %}
+- Heap: {{ heap(frame, value) }}
+- {{ heapbt(frame, value) }}
+{% endif %}
+{% if value in frame["fileReads"].keys() %}
+- File: {{ fileread(frame, value) }}
+- {{ filereadbt(frame, value) }}
+{% endif %}
+{% if 'ptr' in pv -%}
+{{ telescope(frame, pv["ptr"], none ) }}
+{%- endif %}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro ispointer(frame, value) -%}
+{% if value in frame["pointers"].keys() -%}
+**POINTER**
+{%- endif %}
+{%- endmacro %}
+
+{% macro isheap(frame, value) -%}
+{% if value in frame["heap"].keys() -%}
+**HEAP**
+{%- endif %}
+{%- endmacro %}
+
+{% macro isfile(frame, value) -%}
+{% if value in frame["fileReads"].keys() -%}
+**FILE**
+{%- endif %}
+{%- endmacro %}
+
+{%- macro heap(frame, value) -%}
+{%- if value in frame["heap"].keys() -%}
+{{ frame["heap"][value].size }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro fileread(frame, value) -%}
+{%- if value in frame["fileReads"].keys() -%}
+{{- frame["fileReads"][value].size }} bytes from {{ frame["fileReads"][value].path }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro heapbt(frame, value) -%}
+{%- if value in frame["heap"].keys() %}
+##### Heap origin
+{{ backtrace(frame["heap"][value].backtrace) }}
+{%- endif %}
+{%- endmacro %}
+
+{%- macro filereadbt(frame, value) -%}
+{%- if value in frame["fileReads"].keys() -%}
+##### File origin
+{{ backtrace(frame["fileReads"][value].backtrace) }}
+{%- endif -%}
+{%- endmacro -%}
+
 # Function Dump report for {{ func.name }}
 
 {% for frame in data -%}
@@ -7,23 +87,51 @@
 - Depth: {{ data.depth }}
 - Callee: {{ "%#x" % (bv.start + frame["return"]) }}
 - Thread ID: {{ frame["thread_id"] }}
-- Arguments:
+
+### Backtrace
+
+{{ backtrace(frame["backtrace"]) }}
+
+### Arguments:
+Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.int_arg_regs }}
+
+| Argument | Value | Pointer     |Heap buffer | File buffer |
+|----------|-------|-------------|------------|-------------|
+{% for key, value in frame["args"].items() -%}
+| `{{ key }}` | **{{ value }}** | {{ ispointer(frame, value ) }} | {{ isheap(frame, value) }}  | {{ isfile(frame, value) }}  |
+{% endfor %}
+
 {%- for key, value in frame["args"].items() %}
-  - {{ key }}: {{ value }}
+{{ telescope(frame, value, key) }}
 {%- endfor %}
+
 {%- else -%}
 ## Function Return {{ frame["index"] }}
 
 - Return Value: {{ frame["retval"] }}
+
 {%- endif %}
 
 
 ### Context
 
-| Register | Value |
-|----------|-------|
-{%- for key, value in frame["context"].items() %}
-| `{{ key }}` | **{{ value }}** |
-{%- endfor %}
----
+| Register | Value | Pointer    |Heap buffer | File buffer |
+|----------|-------|------------|------------|-------------|
+{% for key, value in frame["context"].items() -%}
+| `{{ key }}` | **{{ value }}** | {{ ispointer(frame, value) }} | {{ isheap(frame, value) }} | {{ isfile(frame, value) }} |
 {% endfor %}
+
+{%- for key, value in frame["context"].items() %}
+{{ telescope(frame, value, key) }}
+{%- endfor %}
+
+## Open files
+| Argument | Value |
+|----------|-------|
+{%- for key, value in frame["fds"].items() %}
+| {{ key }} | {{ value }} |
+{% endfor %}
+
+{% endfor %}
+
+---
