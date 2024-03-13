@@ -7,10 +7,10 @@
 {{ function_header(bv, func) }}
 const myModule = Process.getModuleByName("{{ bv.file.original_filename.split("/") | last }}");
 const symbolAddress = func_{{ func.start }}_ptr;
-const debug = "True";
+const debug = "False";
 
 if (symbolAddress === undefined) {
-	console.log("[!] Unable to finde symbol " + symbolInput)
+	console.log("[!] Unable to find symbol " + symbolInput)
 	send({ "deviError": "No symbol found named: " + symbolInput })
 }
 
@@ -19,9 +19,9 @@ if (myModule !== null) {
 	myModule.end = myModule.base.add(myModule.size);
 	attachInterceptor();
 } else {
-	send({ "deviError": "No module found named: {{ module_name }}" });
+	send({ "deviError": "No module found named: {{ bv.file.original_filename.split("/") | last }}" });
 	// exit javascript here?
-	console.log("[!] No module found named: {{ module_name }}")
+	console.log("[!] No module found named: {{ bv.file.original_filename.split("/") | last }}")
 }
 
 /**
@@ -114,22 +114,24 @@ function traceCalls() {
 /**
  * attach interceptor to main, and start stalker
  */
+ let depth = 0;
+
+ // Send ModuleMap to devi
+ send({ "moduleMap": Process.enumerateModulesSync() })
 function attachInterceptor() {
 	Interceptor.attach(symbolAddress, {
 		onEnter: function (args) {
-			log_d('[-] Start Tracing');
-			log_d("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-
-			// Send ModuleMap to devi
-			send({ "moduleMap": Process.enumerateModulesSync() })
-
+            if(depth > 5)
+                return;
+			console.log('[-] Start Tracing');
 			traceCalls();
+            depth++;
 		},
 		onLeave: function () {
 			Stalker.flush();
 			Stalker.unfollow(Process.getCurrentThreadId());
 			Stalker.garbageCollect();
-			log_d('[-] Done Tracing')
+			console.log('[-] Done Tracing')
 			// send here that we are done and user should detach
 			send({"deviFinished":"Execution finished detach with ctrl + d"})
 		}

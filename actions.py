@@ -139,7 +139,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 
 @message_handler
 def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: dict):
-	print(msg)
+    #print(msg)
 	if "callList" in msg.keys():
 		dump_data["callList"].extend(msg["callList"])
 	elif "moduleMap" in msg.keys():
@@ -154,8 +154,11 @@ def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Functi
 			def load_virtual_calls(self):
 				pass
 
+		state = bv.begin_undo_actions()
 		devi = DeviMuted(bv)
 		devi.devirtualize_calls(dump_data["callList"], dump_data["modules"])
+		info("devi plugin done")
+		bv.commit_undo_actions(state)
 
 # Log Sniffer
 @needs_settings
