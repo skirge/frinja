@@ -6,8 +6,6 @@ let memAllocs = {};
 
 
 function getBacktrace(context) {
-const module = Process.getModuleByName("SAVI");
-  //return Thread.backtrace(context, Backtracer.ACCURATE).filter((x) => (x >= module.base && x <= (module.base + module.size))).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
   return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
 }
 
