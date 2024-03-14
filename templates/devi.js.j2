@@ -22,6 +22,8 @@ if (myModule !== null) {
 	send({ "deviError": "No module found named: {{ bv.file.original_filename.split("/") | last }}" });
 	// exit javascript here?
 	console.log("[!] No module found named: {{ bv.file.original_filename.split("/") | last }}")
+	Interceptor.detachAll();
+	throw new Error(`{{ func.name }}: No module found named: {{ bv.file.original_filename.split("/") | last }}, detaching all intercepts`);
 }
 
 /**
@@ -114,16 +116,20 @@ function traceCalls() {
 /**
  * attach interceptor to main, and start stalker
  */
- let depth = 0;
+let depth = 0;
+let start = Date.now();
 
  // Send ModuleMap to devi
  send({ "moduleMap": Process.enumerateModulesSync() })
 function attachInterceptor() {
 	Interceptor.attach(symbolAddress, {
 		onEnter: function (args) {
-            if(depth > 5)
-                return;
-			console.log('[-] Start Tracing');
+            if(depth > 50 || ((Date.now() - start) > 5*60*1000)) {
+                send({"deviDetach":"Limit reached, detach all"});
+				Interceptor.detachAll();
+				throw new Error(`{{ func.name }}: Maximum call depth (${depth - 1}) or time exceeded, detaching all intercepts`);
+			}
+			console.log(`[-] {{ func.name }}: Start Tracing: (${depth})`);
 			traceCalls();
             depth++;
 		},
