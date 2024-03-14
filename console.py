@@ -132,7 +132,8 @@ class ConsoleTextBrowser(QTextBrowser):
 			self._queue.put_nowait(html)
 
 			if not self._throttled_update:
-				self._throttled_update = asyncio.create_task(self._appendHtml_throttler())
+				loop = asyncio.get_running_loop()
+				self._throttled_update = loop.create_task(self._appendHtml_throttler())
 		else:
 			self.insertHtml(f"<style>{CSS}</style><br/>{html}")
 

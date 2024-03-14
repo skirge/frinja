@@ -5,7 +5,7 @@ import frida
 
 from .frida_launcher import FridaLauncher, jinja, FRIDA_RELOADER
 from .log import *
-from .console import CONSOLE
+#from .console import CONSOLE
 from .settings import HOOK_TAG_TYPE, HOOK_TAG_TYPE_ICON
 from .helper import get_functions_by_tag, needs_settings, message_handler, PLUGIN_PATH
 
@@ -51,7 +51,8 @@ def frida_start(bv: bn.BinaryView):
 @message_handler
 def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 	if not isinstance(msg, dict) or "event" not in msg.keys() or msg["event"] not in ("call", "return"):
-		CONSOLE.handle_message(msg)
+        #CONSOLE.handle_message(msg)
+		print(msg)
 		return
 
 	for k, v in msg.items():
@@ -63,7 +64,8 @@ def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 	# TODO: Per-thread color
 	if msg["event"] == "call":
 		args = ", ".join([f"{k}={v}" for k, v in msg["args"].items()])
-		CONSOLE.output.appendHtml(f"{indent}╔ {link}({args})")
+		#CONSOLE.output.appendHtml(f"{indent}╔ {link}({args})")
+		print(f"{indent}╔ {link}({args})")
 		state["depth"] += 1
 	elif msg["event"] == "return":
 		state["depth"] -= 1
@@ -73,7 +75,8 @@ def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 		if "new_retval" in msg.keys():
 			retval = f'<span style="text-decoration: line-through">{retval}</span> ~> <b>{msg["new_retval"]}</b>'
 
-		CONSOLE.output.appendHtml(f"{indent}╚ {link}(...) « {retval}")
+		#CONSOLE.output.appendHtml(f"{indent}╚ {link}(...) « {retval}")
+		print(f"{indent}╚ {link}(...) « {retval}")
 
 	if state["depth"] <= 0:
 		state["depth"] = 0
@@ -157,6 +160,7 @@ def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Functi
 		state = bv.begin_undo_actions()
 		devi = DeviMuted(bv)
 		devi.devirtualize_calls(dump_data["callList"], dump_data["modules"])
+		dump_data["callList"] = []
 		info("devi plugin done")
 		bv.commit_undo_actions(state)
 

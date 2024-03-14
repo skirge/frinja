@@ -24,7 +24,7 @@ DEALINGS IN THE SOFTWARE.
 import binaryninja as bn
 import binaryninjaui as ui
 from .actions import *
-from .console import CONSOLE
+# from .console import CONSOLE
 from .settings import SETTINGS
 
 bn.PluginCommand.register("Frinja\\Settings", "Set up Frinja to your liking", SETTINGS.show)
@@ -50,4 +50,4 @@ try:
 except ImportError:
 	info("snippets plugin not found, disabling snippets support")
 
-ui.GlobalArea.addWidget(lambda _: CONSOLE)
+# ui.GlobalArea.addWidget(lambda _: CONSOLE)

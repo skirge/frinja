@@ -4,7 +4,7 @@ from typing import List, Optional
 import frida
 import binaryninja as bn
 
-from .console import CONSOLE
+#from .console import CONSOLE
 from .settings import ExecutionAction, SETTINGS
 from .log import *
 from .helper import PLUGIN_PATH
@@ -50,14 +50,19 @@ class FridaLauncher(bn.BackgroundTaskThread):
 		self.evaluate = None
 		SETTINGS.restore(bv)
 
-		self.on_log = [CONSOLE.handle_log]
+		# self.on_log = [CONSOLE.handle_log]
+		self.on_log = [print]
 		self.on_destroyed = []
 		self.on_detached = []
-		self.on_start = [CONSOLE.session_start]
-		self.on_end = [CONSOLE.session_end]
+		# self.on_start = [CONSOLE.session_start]
+		# self.on_end = [CONSOLE.session_end]
+		self.on_start = [print]
+		self.on_end = [print]
 		self.on_message = []
-		self.on_message_send = [lambda msg, _: CONSOLE.handle_message(msg)]
-		self.on_message_error = [CONSOLE.handle_error]
+		# self.on_message_send = [lambda msg, _: CONSOLE.handle_message(msg)]
+		# self.on_message_error = [CONSOLE.handle_error]
+		self.on_message_send = [lambda msg, _: print(msg)]
+		self.on_message_error = [print]
 
 	@staticmethod
 	def from_template(bv: bn.BinaryView, template_name: str, **kwargs):
@@ -82,7 +87,8 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			self.progress = "Reloading script"
 			self.script.unload()
 
-			bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("=== Script reloaded ==="))
+            #bn.execute_on_main_thread(lambda: CONSOLE.output.appendHtml("=== Script reloaded ==="))
+			bn.execute_on_main_thread(lambda: print("=== Script reloaded ==="))
 
 		# Print the script (very useful for debugging)
 		debug("\n".join([f"{n + 1}: {l}" for n, l in enumerate(script.split("\n"))]))
