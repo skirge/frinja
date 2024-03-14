@@ -8,7 +8,8 @@
 {%- endfor -%}
 {%- endmacro %}
 
-{% macro telescope(frame, value, key) -%}
+{% macro telescope(frame, value, key, level) -%}
+{%- if level < 15 -%}
 {%- if value in frame["pointers"].keys() -%}
 {%- if key %}
 ### {{ key }}
@@ -19,18 +20,32 @@
 {%- else -%}
 - `{{ value }}`
 {%- endif -%}
-: "`{{ pv["string"] -}}`" : `{{ pv["hexdump"] }}`
+: `"{{ pv["string"] }}"`
+
+```
+{{ pv["hexdump"] }}
+```
+
 {% if value in frame["heap"].keys() %}
 - Heap: {{ heap(frame, value) }}
-- {{ heapbt(frame, value) }}
+
+```
+{{ heapbt(frame, value) }}
+```
+
 {% endif %}
 {% if value in frame["fileReads"].keys() %}
 - File: {{ fileread(frame, value) }}
-- {{ filereadbt(frame, value) }}
+
+```
+{{ filereadbt(frame, value) }}
+```
+
 {% endif %}
 {% if 'ptr' in pv -%}
-{{ telescope(frame, pv["ptr"], none ) }}
+{{ telescope(frame, pv["ptr"], none, level+1 ) }}
 {%- endif %}
+{%- endif -%}
 {%- endif -%}
 {%- endmacro %}
 
@@ -102,7 +117,7 @@ Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.
 {% endfor %}
 
 {%- for key, value in frame["args"].items() %}
-{{ telescope(frame, value, key) }}
+{{ telescope(frame, value, key, 1) }}
 {%- endfor %}
 
 {%- else -%}
@@ -122,7 +137,7 @@ Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.
 {% endfor %}
 
 {%- for key, value in frame["context"].items() %}
-{{ telescope(frame, value, key) }}
+{{ telescope(frame, value, key, 1) }}
 {%- endfor %}
 
 ## Open files
