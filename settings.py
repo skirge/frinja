@@ -68,7 +68,7 @@ class Settings():
 
 		try:
 			for processes in device.enumerate_processes():
-				pid_ui.choices.append(f"{processes.name} ({processes.pid})")
+				pid_ui.choices.append(f"{processes.name.encode('utf-8')} ({processes.pid})")
 				if self.attach_pid == processes.pid:
 					pid_ui._default = len(pid_ui.choices) - 1
 		except frida.ServerNotRunningError:
