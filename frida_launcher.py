@@ -177,20 +177,23 @@ class FridaLauncher(bn.BackgroundTaskThread):
 			return
 
 		# global FRIDA_RELOADER
-		self.progress = "Frinja cleaning up"
+		try:
+			self.progress = "Frinja cleaning up"
 
-		if SETTINGS.exec_action != ExecutionAction.SPAWN:
-			if self.session is not None and not self.session.is_detached:
-				# Frida internally does frida_session_detach_sync which is a blocking call
-				# so if we stop in the middle of a hooked function we have to wait till it returns
-				self.session.detach()
-				return
-		else:
-			try:
-				SETTINGS.device.kill(self.pid)
-				info("Process killed")
-			except frida.ProcessNotFoundError:
-				info("Process already finished")
+			if SETTINGS.exec_action != ExecutionAction.SPAWN:
+				if self.session is not None and not self.session.is_detached:
+					# Frida internally does frida_session_detach_sync which is a blocking call
+					# so if we stop in the middle of a hooked function we have to wait till it returns
+					self.session.detach()
+					return
+			else:
+				try:
+					SETTINGS.device.kill(self.pid)
+					info("Process killed")
+				except frida.ProcessNotFoundError:
+					info("Process already finished")
+		except:
+			bn.log_error("Exception in finalizer")
 
 		# FRIDA_RELOADER = lambda: None
 		for f in self.on_end:
