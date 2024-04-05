@@ -119,11 +119,17 @@ try {
             const regv = ctx[reg];
             var ptrValue = regv;
             var depth = 0;
+            var success = false;
             do {
+                success = false;
+                 if(ptrValue === undefined) {
+                        break;
+                }
                 try {
                     const d = {};
-                    d.string = "";
-                    d.hexdump = "";
+                    d.string = "<unreadable>";
+                    d.hexdump = "<unreadable>";
+                    d.ptr = "<unreadable>"
                     try {
                         var cstring = ptrValue.readCString();
                         d.string = cstring;
@@ -131,14 +137,16 @@ try {
                     try {
                         let length = 16;
                         if(memAllocs[ptrValue]) {
-                            length = Math.min(16, memAllocs[ptrValue].size);
+                            length = Math.min(64, memAllocs[ptrValue].size);
                         }
                         var hd = hexdump(ptrValue, {length: length, ansi: false, header: false});
                         d.hexdump = hd;
                     } finally {}
                     try {
                         var sym = DebugSymbol.fromAddress(ptrValue);
-                        d.symbol = sym.name;
+                        if(sym) {
+                            d.symbol = sym.name;
+                        }
                     } finally {}
                     derefs[ptrValue] = d;
 					if(memAllocs[ptrValue])
@@ -147,21 +155,23 @@ try {
                         taintedBuffers[ptrValue] = fileReads[ptrValue];
                     var oldPtr = ptrValue;
                     ptrValue = ptrValue.readPointer();
-                    if(ptrValue != oldPtr) { // avoid recursion
+                     if(ptrValue !== undefined && ptrValue != oldPtr) { // avoid recursion
                         derefs[oldPtr].ptr = ptrValue;
                         success = true;
                     }
                     depth++;
-            } catch ({ name, message }) {
-                /*
-                console.log(name);
-                console.log(message);
-                */
-            }
-            } while(success && depth < 15);
-        } catch ({ name, message }) {
+                } catch ({ name, message, stack }) {
+                    /*
+                    console.log(name);
+                    console.log(stack);
+                    console.log(message);
+                    */
+                }
+             } while(ptrValue!==undefined && success && depth < 15);
+        } catch ({ name, message, stack }) {
             /*
             console.log(name);
+            console.log(stack);
             console.log(message);
             */
         }
@@ -179,14 +189,17 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 		}
 
 		this.index = index;
-
     const buffers = {}
     const heap = {}
-    const derefs = telescope(this.context, buffers, heap);
+    let derefs = {}
+    try {
+        derefs = telescope(this.context, buffers, heap);
+    } finally {}
 
+    try {
 		send({
 			"context": this.context,
-      "backtrace" : getBacktrace(this.context),
+          "backtrace" : getBacktrace(this.context),
 			"return": this.returnAddress.sub(func_{{ func.start }}_module),
 			"depth": this.depth,
 			"thread_id": this.threadId,
@@ -203,13 +216,18 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
       "pointers" : derefs
 
 		})
+    } finally {}
 
 	},
 	onLeave(retval) {
         console.log("[*] Leaving hooked function");
     const buffers = {}
     const heap = {}
-    const derefs = telescope(this.context, buffers, heap);
+    let derefs = {}
+    try {
+        derefs = telescope(this.context, buffers, heap);
+    } finally {}
+
 		send({
 			"context": this.context ? this.context : {},
       "backtrace" : {},
