@@ -29,17 +29,13 @@
 {% if value in frame["heap"].keys() %}
 - Heap: {{ heap(frame, value) }}
 
-```
 {{ heapbt(frame, value) }}
-```
 
 {% endif %}
 {% if value in frame["fileReads"].keys() %}
 - File: {{ fileread(frame, value) }}
 
-```
 {{ filereadbt(frame, value) }}
-```
 
 {% endif %}
 {% if 'ptr' in pv -%}
@@ -82,14 +78,18 @@
 {%- macro heapbt(frame, value) -%}
 {%- if value in frame["heap"].keys() %}
 ##### Heap origin
+```
 {{ backtrace(frame["heap"][value].backtrace) }}
+```
 {%- endif %}
 {%- endmacro %}
 
 {%- macro filereadbt(frame, value) -%}
 {%- if value in frame["fileReads"].keys() -%}
 ##### File origin
+```
 {{ backtrace(frame["fileReads"][value].backtrace) }}
+```
 {%- endif -%}
 {%- endmacro -%}
 
