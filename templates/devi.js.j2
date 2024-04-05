@@ -124,7 +124,7 @@ let start = Date.now();
 function attachInterceptor() {
 	Interceptor.attach(symbolAddress, {
 		onEnter: function (args) {
-            if(depth > 50 || ((Date.now() - start) > 5*60*1000)) {
+            if(depth > 5000 || ((Date.now() - start) > 5*60*1000)) {
                 send({"deviDetach":"Limit reached, detach all"});
 				Interceptor.detachAll();
 				throw new Error(`{{ func.name }}: Maximum call depth (${depth - 1}) or time exceeded, detaching all intercepts`);
