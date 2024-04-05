@@ -44,9 +44,9 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 Process.setExceptionHandler(args => {
 	if(args.type === "breakpoint"){
 		// Send the basic block offset to the python script as we don't know the module base address
-		send(args.address.sub(func_{{ func.start }}_module));
+		send(args.address.sub(func_{{ func.start }}_module).sub(1));
 
-		args.context["pc"] = hooked_blocks[args.address];
+		args.context["pc"] = hooked_blocks[args.address.sub(1)];
 		return true;
 	}
 
