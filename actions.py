@@ -98,7 +98,13 @@ def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, fu
 	# The block in HLIL can't get highlighted - upstream bug https://github.com/Vector35/binaryninja-api/issues/2584
 	# block = func.get_basic_block_at(addr)
 	# block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
-	func.set_auto_instr_highlight(addr, bn.HighlightStandardColor.CyanHighlightColor)
+	blocks = bv.get_basic_blocks_at(addr)
+	#UIPlugin.path.append(addr)
+	for block in blocks:
+		block.set_auto_highlight(bn.HighlightColor(
+			bn.HighlightStandardColor.GreenHighlightColor, alpha=128))
+		block.function.set_auto_instr_highlight(
+			addr, bn.HighlightStandardColor.GreenHighlightColor)
 
 
 # Function Dumper
