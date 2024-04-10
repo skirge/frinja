@@ -1,5 +1,5 @@
 {%- macro backtrace(bt, indent) -%}
-{% set indent = ident|default('') %}
+{% set indent = indent|default('') %}
 {%- for entry in bt %}
 {%- set addr = entry | int %}
 {%- set sym = bv.get_functions_containing(bv.start + addr) %}
@@ -10,7 +10,7 @@
 {%- endmacro %}
 
 {% macro bt1(entry, indent) -%}
-{% set indent = ident|default('') -%}
+{% set indent = indent|default('') -%}
 {% set addr = entry[0] | int -%}
 {% set sym = bv.get_functions_containing(bv.start + addr) -%}
 {% for func in sym -%}
@@ -38,13 +38,11 @@
 {{indent}}    * File: {{ fileread(frame, value) }} {{bt1(frame["fileReads"][value].backtrace)}}
 {%- endif %}
 {%- if level < 5 %}
-{% for f in pv.fields %}
-{%- if f in frame["heap"].keys() %}
-{{indent}}* Field: {{f}}
-{%else%}
-{{indent}}* -> {{f}}
-{%- endif %}
-{{ telescope(frame, f, none, level+1 ) }}
+{% set offset = 0 | int -%}
+{%- for f in pv.fields %}
+{{indent}}* {{"%#x" % offset}}: {{f}}
+{{ telescope(frame, f, none, level+1) }}
+{% set offset = offset+8 | int -%}
 {% endfor %}
 {%- endif %}
 {%- endif -%}
@@ -81,7 +79,7 @@
 {%- endmacro -%}
 
 {%- macro heapbt(frame, value,indent) -%}
-{% set indent = ident|default('') %}
+{% set indent = indent|default('') %}
 {%- if value in frame["heap"].keys() %}
 ```
 {{ backtrace(frame["heap"][value].backtrace, indent) }}
@@ -90,7 +88,7 @@
 {%- endmacro %}
 
 {%- macro filereadbt(frame, value, indent) -%}
-{% set indent = ident|default('') %}
+{% set indent = indent|default('') %}
 {%- if value in frame["fileReads"].keys() -%}
 ```
 {{ backtrace(frame["fileReads"][value].backtrace, indent) }}
@@ -154,7 +152,7 @@ Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.
 ## Tainted buffers
 {%- for value in frame["fileReads"].keys() %}
 ### {{ value }}
-{{heapbt(frame, value)}}
+{{filereadbt(frame, value)}}
 {% endfor %}
 
 ## Open files
