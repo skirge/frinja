@@ -3,7 +3,7 @@
 
 let index = 0;
 let memAllocs = {};
-
+let fileReads = {};
 
 function getBacktrace(context) {
   return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
@@ -75,7 +75,6 @@ Interceptor.attach(Module.getExportByName(null, 'close'), {
   },
 })
 
-let fileReads = {};
 
 const handleRead = {
   onEnter(args) {
@@ -111,63 +110,11 @@ for(const inputf of inputFunctions) {
 
 const registers = {{ bv.arch.standalone_platform.default_calling_convention.int_arg_regs+bv.arch.standalone_platform.default_calling_convention.callee_saved_regs+bv.arch.standalone_platform.default_calling_convention.caller_saved_regs }}
 
-function telescope(ctx, taintedBuffers, heapChunks) {
-    let derefs = {};
-
+function dereference_ctx(ctx, derefs, taintedBuffers, heapChunks) {
     for(const reg of registers) {
-try {
+        try {
             const regv = ctx[reg];
-            var ptrValue = regv;
-            var depth = 0;
-            var success = false;
-            do {
-                success = false;
-                 if(ptrValue === undefined) {
-                        break;
-                }
-                try {
-                    const d = {};
-                    d.string = "<unreadable>";
-                    d.hexdump = "<unreadable>";
-                    d.ptr = "<unreadable>"
-                    try {
-                        var cstring = ptrValue.readCString();
-                        d.string = cstring;
-                    } finally {}
-                    try {
-                        let length = 16;
-                        if(memAllocs[ptrValue]) {
-                            length = Math.min(64, memAllocs[ptrValue].size);
-                        }
-                        var hd = hexdump(ptrValue, {length: length, ansi: false, header: false});
-                        d.hexdump = hd;
-                    } finally {}
-                    try {
-                        var sym = DebugSymbol.fromAddress(ptrValue);
-                        if(sym) {
-                            d.symbol = sym.name;
-                        }
-                    } finally {}
-                    derefs[ptrValue] = d;
-					if(memAllocs[ptrValue])
-                        heapChunks[ptrValue] = memAllocs[ptrValue];
-                    if(fileReads[ptrValue])
-                        taintedBuffers[ptrValue] = fileReads[ptrValue];
-                    var oldPtr = ptrValue;
-                    ptrValue = ptrValue.readPointer();
-                     if(ptrValue !== undefined && ptrValue != oldPtr) { // avoid recursion
-                        derefs[oldPtr].ptr = ptrValue;
-                        success = true;
-                    }
-                    depth++;
-                } catch ({ name, message, stack }) {
-                    /*
-                    console.log(name);
-                    console.log(stack);
-                    console.log(message);
-                    */
-                }
-             } while(ptrValue!==undefined && success && depth < 15);
+            telescope(regv, derefs, taintedBuffers, heapChunks, 0);
         } catch ({ name, message, stack }) {
             /*
             console.log(name);
@@ -175,9 +122,117 @@ try {
             console.log(message);
             */
         }
-
     }
-    return derefs;
+}
+
+function telescope(ptrValue, derefs, taintedBuffers, heapChunks, depth) {
+    if(depth > 5) {
+        //console.log("too deep!");
+        return;
+    }
+    if(ptrValue === undefined) {
+        //console.log("undefined pointer");
+        return;
+    }
+    if (ptr(ptrValue).isNull() || ptr(0).compare(ptrValue)==0) {
+        //console.log("NULL pointer");
+        return;
+    }
+    /*
+    if( ptr(ptrValue).toInt32() % 8 != 0) {
+        //console.log("Unaligned pointer");
+        return;
+    }
+    */
+    if (func_{{func.start}}_ptr.compare(ptr(ptrValue)) > 0) {
+        //console.log("unreadable address - not above module base");
+        return;
+    }
+    try {
+        var hd = "<unreadable>";
+        var aptr = "<unreadable>";
+        var sym = "<no symbol>";
+        var size = 0;
+
+        try {
+            if(memAllocs[ptrValue]) {
+                size = memAllocs[ptrValue].size;
+            } else
+                size = 8;
+            hd = hexdump(ptrValue, {length: Math.min(16,size), ansi: false, header: false});
+            hd = hd.substring(hd.indexOf(' ')+1)
+        } catch ({ name, message, stack }) {
+            /*
+            console.log("block3");
+            console.log(name);
+            console.log(stack);
+            console.log(message);
+            */
+        }
+
+        try {
+            sym = DebugSymbol.fromAddress(ptrValue);
+        } catch ({ name, message, stack }) {
+            /*
+            console.log("block3-2");
+            console.log(name);
+            console.log(stack);
+            console.log(message);
+            */
+        }
+
+        if(memAllocs[ptrValue])
+            heapChunks[ptrValue] = memAllocs[ptrValue];
+
+        if(fileReads[ptrValue])
+            taintedBuffers[ptrValue] = fileReads[ptrValue];
+
+        // dereference memory pointers
+        // TODO: per platform pointer size
+        var fields = [];
+        for(let i = 0; i < size; i+=8) {
+            let p = ptrValue.add(i);
+            try {
+                let v = p.readPointer();
+                fields.push(v);
+                if(derefs[v] !== undefined ) {
+                    continue;
+                }
+                if(p.compare(v)!=0 && ptrValue.compare(v)!=0) {
+                    if(!v.isNull()) {
+                        // valid pointer will be aligned
+                        if( v.toInt32() % 8 == 0) {
+                            if (func_3224882528_ptr.compare(v) < 0) {
+                                telescope(v, derefs, taintedBuffers, heapChunks, depth+1);
+                            }
+                        }
+                    }
+                }
+            } catch ({ name, message, stack }) {
+                /*
+                console.log("block2");
+                console.log(name);
+                console.log(stack);
+                console.log(message);
+                */
+            }
+            const d = {};
+            d.fields = fields;
+            d.hexdump = hd;
+            d.size = size;
+            if(sym)
+            d.symbol = sym.name;
+            derefs[ptrValue] = d;
+        }
+
+    } catch ({ name, message, stack }) {
+        /*
+        console.log("block4");
+        console.log(name);
+        console.log(stack);
+        console.log(message);
+        */
+    }
 }
 
 Interceptor.attach(func_{{ func.start }}_ptr, {
@@ -193,31 +248,35 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
     const heap = {}
     let derefs = {}
     try {
-        derefs = telescope(this.context, buffers, heap);
-    } finally {}
+        dereference_ctx(this.context, derefs, buffers, heap);
+    } catch ({ name, message, stack }) {
+        /*
+        console.log("block5");
+        console.log(name);
+        console.log(stack);
+        console.log(message);
+        */
+    }
 
-    try {
-		send({
-			"context": this.context,
-          "backtrace" : getBacktrace(this.context),
-			"return": this.returnAddress.sub(func_{{ func.start }}_module),
-			"depth": this.depth,
-			"thread_id": this.threadId,
-			"index": index++,
-			"args": {
-				{% for param in func.parameter_vars -%}
-					{%- set index = loop.index0 | string -%}
-					"{{ param.name }}": {{- argparse(param, "args[" + index + "]") -}},
-				{% endfor %}
-			},
-      "fileReads": buffers,
-      "fds" : fileOpens,
-      "heap" : heap,
-      "pointers" : derefs
+    send({
+        "context": this.context,
+        "backtrace" : getBacktrace(this.context),
+        "return": this.returnAddress.sub(func_{{ func.start }}_module),
+            "depth": this.depth,
+            "thread_id": this.threadId,
+            "index": index++,
+            "args": {
+        {% for param in func.parameter_vars -%}
+            {%- set index = loop.index0 | string -%}
+            "{{ param.name }}": {{- argparse(param, "args[" + index + "]") -}},
+            {% endfor %}
+        },
+            "fileReads": buffers,
+            "fds" : fileOpens,
+            "heap" : heap,
+            "pointers" : derefs
 
-		})
-    } finally {}
-
+    })
 	},
 	onLeave(retval) {
         console.log("[*] Leaving hooked function");
@@ -225,8 +284,15 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
     const heap = {}
     let derefs = {}
     try {
-        derefs = telescope(this.context, buffers, heap);
-    } finally {}
+        dereference_ctx(this.context, derefs, buffers, heap);
+    } catch ({ name, message, stack }) {
+        /*
+        console.log("block7");
+        console.log(name);
+        console.log(stack);
+        console.log(message);
+        */
+    }
 
 		send({
 			"context": this.context ? this.context : {},

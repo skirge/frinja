@@ -1,47 +1,52 @@
-{%- macro backtrace(bt) -%}
+{%- macro backtrace(bt, indent) -%}
+{% set indent = ident|default('') %}
 {%- for entry in bt %}
 {%- set addr = entry | int %}
 {%- set sym = bv.get_functions_containing(bv.start + addr) %}
 {%- for func in sym %}
-- {{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
+{{indent}}- {{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
 {%- endfor %}
 {%- endfor -%}
 {%- endmacro %}
 
+{% macro bt1(entry, indent) -%}
+{% set indent = ident|default('') -%}
+{% set addr = entry[0] | int -%}
+{% set sym = bv.get_functions_containing(bv.start + addr) -%}
+{% for func in sym -%}
+{{indent}}{{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
+{%- endfor %}
+{%- endmacro %}
+
 {% macro telescope(frame, value, key, level) -%}
-{%- if level < 15 -%}
 {%- if value in frame["pointers"].keys() -%}
 {%- if key %}
 ### {{ key }}
 {% endif %}
 {%- set pv = frame["pointers"][value] %}
+{%- set indent = level*"    " %}
 {%- if 'symbol' in pv -%}
-- `{{value }}` ({{ pv['symbol'] }})
+{{indent}}* `{{value }}` ({{ pv['symbol'] }})
 {%- else -%}
-- `{{ value }}`
+{{indent}}* `{{ value }}`
 {%- endif -%}
-: `"{{ pv["string"] }}"`
-
-```
-{{ pv["hexdump"] }}
-```
-
-{% if value in frame["heap"].keys() %}
-- Heap: {{ heap(frame, value) }}
-
-{{ heapbt(frame, value) }}
-
-{% endif %}
-{% if value in frame["fileReads"].keys() %}
-- File: {{ fileread(frame, value) }}
-
-{{ filereadbt(frame, value) }}
-
-{% endif %}
-{% if 'ptr' in pv -%}
-{{ telescope(frame, pv["ptr"], none, level+1 ) }}
+: `{{ pv["hexdump"] }}`
+{%- if value in frame["heap"].keys() %}
+{{indent}}    * Heap: {{ heap(frame, value) }} {{bt1(frame["heap"][value].backtrace)}}
 {%- endif %}
-{%- endif -%}
+{%- if value in frame["fileReads"].keys() %}
+{{indent}}    * File: {{ fileread(frame, value) }} {{bt1(frame["fileReads"][value].backtrace)}}
+{%- endif %}
+{%- if level < 5 %}
+{% for f in pv.fields %}
+{%- if f in frame["heap"].keys() %}
+{{indent}}* Field: {{f}}
+{%else%}
+{{indent}}* -> {{f}}
+{%- endif %}
+{{ telescope(frame, f, none, level+1 ) }}
+{% endfor %}
+{%- endif %}
 {%- endif -%}
 {%- endmacro %}
 
@@ -75,20 +80,20 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{%- macro heapbt(frame, value) -%}
+{%- macro heapbt(frame, value,indent) -%}
+{% set indent = ident|default('') %}
 {%- if value in frame["heap"].keys() %}
-##### Heap origin
 ```
-{{ backtrace(frame["heap"][value].backtrace) }}
+{{ backtrace(frame["heap"][value].backtrace, indent) }}
 ```
 {%- endif %}
 {%- endmacro %}
 
-{%- macro filereadbt(frame, value) -%}
+{%- macro filereadbt(frame, value, indent) -%}
+{% set indent = ident|default('') %}
 {%- if value in frame["fileReads"].keys() -%}
-##### File origin
 ```
-{{ backtrace(frame["fileReads"][value].backtrace) }}
+{{ backtrace(frame["fileReads"][value].backtrace, indent) }}
 ```
 {%- endif -%}
 {%- endmacro -%}
@@ -139,6 +144,18 @@ Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.
 {%- for key, value in frame["context"].items() %}
 {{ telescope(frame, value, key, 1) }}
 {%- endfor %}
+
+## Heap chunks
+{%- for value in frame["heap"].keys() %}
+### {{ value }}
+{{heapbt(frame, value)}}
+{% endfor %}
+
+## Tainted buffers
+{%- for value in frame["fileReads"].keys() %}
+### {{ value }}
+{{heapbt(frame, value)}}
+{% endfor %}
 
 ## Open files
 | Argument | Value |
