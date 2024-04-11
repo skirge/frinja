@@ -9,7 +9,10 @@ function getBacktrace(context) {
   return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
 }
 
-const sym_ptr = Module.getExportByName(null, 'malloc');
+const mallloc_funcs = ['malloc', 'calloc', 'realloc'];
+
+function attach_malloc(symname) {
+    const sym_ptr = Module.getExportByName(null, symname);
 	Interceptor.attach(sym_ptr, {
 
 		onEnter(args) {
@@ -24,6 +27,9 @@ const sym_ptr = Module.getExportByName(null, 'malloc');
         memAllocs[retval.toString()] =  allocEvent;
     }
 });
+}
+
+mallloc_funcs.forEach(attach_malloc);
 
 const free_ptr = Module.getExportByName(null, 'free');
 
