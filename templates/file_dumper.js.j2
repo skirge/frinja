@@ -1,0 +1,94 @@
+{%- from "_macros.js.j2" import argparse, function_header -%}
+{{ function_header(bv, func) }}
+const file_path = "{{file_path}}";
+
+function getBacktrace(context) {
+  return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
+}
+
+let fileOpens = {};
+
+Interceptor.attach(Module.getExportByName(null, 'open'), {
+  onEnter(args) {
+        this.path = args[0].readUtf8String(); // pathname
+        // console.log("[*] trying to open:[" + this.path + "]");
+  },
+
+  onLeave(retval) {
+      if(retval.toInt32()<0) {
+        // console.log("[!] cannot open:[" + this.path + "]");
+        return
+      }
+	  fileOpens[retval] = this.path;
+  }
+
+})
+
+Interceptor.attach(Module.getExportByName(null, 'close'), {
+  onEnter(args) {
+      const fd = args[0].toString();
+      // console.log("[*] closing:[" + fd + "], path=[" + fileOpens[fd] + "]");
+      delete fileOpens[fd];
+  },
+})
+
+const SEEK_CUR = 1;
+
+const lseek = new NativeFunction(Module.getExportByName(null,'lseek'), 'pointer', ['int', 'pointer', 'int']);
+
+const handleRead = {
+  onEnter(args) {
+
+    // Save arguments for processing in onLeave.
+	    const readEvent = {};
+
+        const fd = args[0];
+        const buf = args[1];
+        const size = args[2];
+        // off_t lseek(int fd, off_t offset, int whence);
+        const pos = lseek(fd.toInt32(), ptr(0), SEEK_CUR);
+
+        if(pos < 0) {
+            console.log("[!] Error getting current pos from fd=[" + fd +"]");
+        }
+
+        // console.log('[*] trying to read from fd:[' + fd + '], path:[' + fileOpens[fd] + '], buf = [' + buf + '], size=[' + size + '], pos=[' + pos +']');
+
+        if(!fileOpens.hasOwnProperty(fd)) {
+            console.log('[!] Unknown fd ' + fd);
+        } else {
+            if(fileOpens[fd].includes(file_path)) {
+                console.log('[*] reading from fd:[' + fd + '], path:[' + fileOpens[fd] + '], buf = [' + buf + '], size=[' + size + '], pos=[' + pos +']');
+                readEvent["fd"] = fd;
+                readEvent["buf"] = buf;
+                readEvent["size"] = size;
+                readEvent["path"] = fileOpens[fd];
+                readEvent["backtrace"] = getBacktrace(this.context);
+                readEvent["return"] = this.returnAddress.sub(func_{{func.start}}_module);
+                readEvent["pos"] = pos;
+                readEvent["context"] = this.context;
+                this.readEvent = readEvent;
+            }
+        }
+  },
+
+  onLeave(retval) {
+        if(this.readEvent) {
+            const readEvent = this.readEvent;
+            let hd = hexdump(readEvent['buf'], { length: Math.min(16,readEvent['size']), ansi: false, header:false})
+            hd = hd.substring(hd.indexOf(' ')+1)
+            readEvent.hexdump = hd;
+            readEvent.retval = retval;
+            send(readEvent);
+        }
+  }
+}
+
+const inputFunctions = ['read'];
+
+for(const inputf of inputFunctions) {
+    if(Module.findExportByName(null,inputf)) {
+        console.log("[*] hooking input symbol:" + inputf);
+        Interceptor.attach(Module.getExportByName(null, inputf), handleRead);
+    }
+}

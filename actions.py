@@ -132,6 +132,36 @@ def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func
 		msg["return"] = int(msg["return"], 16)
 	dump_data.append(msg)
 
+# File Dumper
+@alert_on_error
+@needs_settings
+def file_dumper(bv: bn.BinaryView, func: bn.Function):
+	dump_data = []
+	file_path = bn.interaction.get_text_line_input("File name (substring)","File name to monitor")
+	if file_path is None:
+		return
+	file_path = file_path.decode()
+
+	info(f"Launching file dumper for {file_path}")
+
+	def reporter():
+		info("Dumping complete - generating report")
+		template = jinja.get_template("file_dumper_report.md.j2")
+		report = template.render(bv=bv, func=func, data=dump_data, file_path=file_path)
+		bv.show_markdown_report(f"File {file_path} dump", report)
+
+	frida_launcher = FridaLauncher.from_template(bv, "file_dumper.js.j2", func=func, file_path=file_path)
+	frida_launcher.on_message_send = [on_function_dumper(bv, func, dump_data)]
+	frida_launcher.on_end.append(reporter)
+	frida_launcher.start()
+
+
+@message_handler
+def on_function_dumper(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: list):
+	if "return" in msg.keys():
+		msg["return"] = int(msg["return"], 16)
+	dump_data.append(msg)
+
 # Devi
 @alert_on_error
 @needs_settings

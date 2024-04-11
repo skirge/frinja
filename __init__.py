@@ -33,6 +33,7 @@ bn.PluginCommand.register_for_function("Frinja\\Hook Function", "Mark function f
 bn.PluginCommand.register("Frinja\\Run Hooker", "Start frida with the given settings and the hooker script", frida_start)
 bn.PluginCommand.register_for_function("Frinja\\Inspect Function Paths", "Highlight the code paths that the functions takes", function_inspector)
 bn.PluginCommand.register_for_function("Frinja\\Dump Function Context", "Create a report of all the function calls and returns", function_dumper)
+bn.PluginCommand.register_for_function("Frinja\\Dump file reads", "Create a report with sequence of specific file read operations", file_dumper)
 bn.PluginCommand.register("Frinja\\Log Sniffer", "Try to identify logging functions that are called", log_sniffer)
 
 try:

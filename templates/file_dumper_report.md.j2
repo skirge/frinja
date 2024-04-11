@@ -1,0 +1,57 @@
+{%- macro backtrace(bt, indent) -%}
+{%- set indent = ident|default('') -%}
+{%- for entry in bt -%}
+{%- set addr = entry | int -%}
+{%- set sym = bv.get_functions_containing(bv.start + addr) -%}
+{%- for func in sym %}
+{{indent}}{{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
+{%- endfor %}
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro backtrace2(bt) -%}
+{%- for entry in bt -%}
+{%- if loop.index <= 5 -%}
+{%- set addr = entry | int -%}
+{%- set sym = bv.get_functions_containing(bv.start + addr) -%}
+{%- for func in sym -%}
+{{ func.name }}+{{ (bv.start + addr) - func.start }} ->
+{%- endfor -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro decodeReturn(entry, indent) -%}
+{%- set addr = entry | int -%}
+{%- set sym = bv.get_functions_containing(bv.start + addr) -%}
+{%- for func in sym -%}
+{{indent}}{{ "%#x" % (bv.start + addr) }} : {{ func.name }}+{{ (bv.start + addr) - func.start }}
+{%- endfor -%}
+{%- endmacro -%}
+
+# File read report for {{ file_path }}
+
+| fd       | buf   | pos         |size        | bytes       | backtrace      |
+|----------|-------|-------------|------------|-------------|----------------|
+{% for event in data -%}
+| {{event["fd"]}} | {{event["buf"]}} | {{event["pos"]}} | {{event["size"]}} | `{{event["hexdump"]}}` | {{backtrace2(event["backtrace"])}} |
+{% endfor %}
+
+## Events
+
+{% for event in data -%}
+
+### Event {{loop.index}}
+
+* fd: {{event["fd"]}}
+* path: {{event["path"]}}
+* buf: {{event["buf"]}}
+* pos: {{event["pos"]}}
+* size: {{event["size"]}}
+* bytes: `{{event["hexdump"]}}`
+* backtrace:
+
+```
+{{backtrace(event["backtrace"])}}
+```
+{% endfor %}
