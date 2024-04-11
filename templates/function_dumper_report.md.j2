@@ -38,11 +38,9 @@
 {{indent}}    * File: {{ fileread(frame, value) }} {{bt1(frame["fileReads"][value].backtrace)}}
 {%- endif %}
 {%- if level < 5 %}
-{% set offset = 0 | int -%}
 {%- for f in pv.fields %}
-{{indent}}* {{"%#x" % offset}}: {{f}}
+{{indent}}* {{"%#x" % (loop.index0*8)}}: {{f}}
 {{ telescope(frame, f, none, level+1) }}
-{% set offset = offset+8 | int -%}
 {% endfor %}
 {%- endif %}
 {%- endif -%}
