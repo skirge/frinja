@@ -8,10 +8,14 @@ const basic_blocks = [
 	{% endfor %}
 ];
 
-let hooked_blocks = {}
+let hooked_blocks = {};
+let visited = Object.create(null);
+let done = false;
 
 Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter: function(args) {
+        if(done) 
+            return;
 		for (const block of basic_blocks) {
 			const instr = Instruction.parse(block)
 			const page = Memory.alloc(Process.pageSize);
@@ -38,18 +42,64 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 				writer.putNopPadding(instr.size - 1);
 			});
 		}
+        done = true;
 	}
 });
 
 Process.setExceptionHandler(args => {
 	if(args.type === "breakpoint"){
 		// Send the basic block offset to the python script as we don't know the module base address
-		send(args.address.sub(func_{{ func.start }}_module).sub(1));
+        let addr = args.address.sub(func_{{ func.start }}_module).sub(1);
+		if(visited[addr]!==undefined) {
+            visited[addr]=visited[addr]+1;
+        } else {
+            visited[addr]=0;
+        }
+        var c = visited[addr];
+
+        let dosend = false;
+		if(c==1) {
+            dosend = true;
+        } else if(c==10) {
+            dosend = true;
+        } else if (c==50) {
+            dosend = true;
+        } else if (c==100) {
+            dosend = true;
+        } else if (c==500) {
+            dosend = true;
+        } else if (c==1000) {
+            dosend = true;
+        } else if (c==10000) {
+            dosend=true;
+        } else if(c==100000) {
+            dosend = true;
+        }  else if(c==1000000) {
+            dosend = true;
+        } else if(c==10000000) {
+            dosend = true;
+        }
+
+        if(dosend) {
+            console.log(`[*] sending for ${addr}:${c}`);
+		    send({
+                "addr" : addr,
+                "count" : c
+                });
+        }
 
 		args.context["pc"] = hooked_blocks[args.address.sub(1)];
+
+        if(c>=10000001) {
+            console.log("[*] Maximum threshold of 10M reached");
+			Interceptor.detachAll();
+			throw new Error(`{{ func.name }}: Maximum call depth exceeded (${c - 1}), detaching all intercepts`);
+        }
+
 		return true;
 	}
 
+    console.log("Unknown exception type");
 	console.log(args.type)
 	return false
 });

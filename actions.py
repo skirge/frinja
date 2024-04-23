@@ -1,6 +1,7 @@
 from html import escape
 from typing import Any, Optional
 import binaryninja as bn
+from binaryninja.highlight import HighlightColor
 import frida
 
 from .frida_launcher import FridaLauncher, jinja, FRIDA_RELOADER
@@ -51,7 +52,7 @@ def frida_start(bv: bn.BinaryView):
 @message_handler
 def on_frida_start(msg: Any, data: Optional[bytes], state: dict):
 	if not isinstance(msg, dict) or "event" not in msg.keys() or msg["event"] not in ("call", "return"):
-        #CONSOLE.handle_message(msg)
+		#CONSOLE.handle_message(msg)
 		print(msg)
 		return
 
@@ -90,21 +91,72 @@ def function_inspector(bv: bn.BinaryView, func: bn.Function):
 	frida_launcher.on_message_send = [on_function_inspector(bv, func)]
 	frida_launcher.start()
 
+colors = [
+	[252,176,69],
+	[252,144,60],
+	[252,117,53],
+	[253,61,38],
+	[253,29,29],
+	[231,34,56],
+	[221,36,68],
+	[202,41,92],
+	[185,45,113],
+	[158,52,147],
+	[131,58,180],
+]
+
 @message_handler
-def on_function_inspector(msg: str, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
-	addr = bv.start + int(msg, 16)
+def on_function_inspector(msg: Any, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function):
+	global colors
+	if not isinstance(msg, dict) or "addr" not in msg.keys() or "count" not in msg.keys():
+		#CONSOLE.handle_message(msg)
+		print(msg)
+		return
+	addr = bv.start + int(msg["addr"], 16)
 	debug(f"Highlighting block @ {hex(addr)}")
 
-	# The block in HLIL can't get highlighted - upstream bug https://github.com/Vector35/binaryninja-api/issues/2584
-	# block = func.get_basic_block_at(addr)
-	# block.set_auto_highlight(bn.HighlightStandardColor.CyanHighlightColor)
+	c = msg["count"]
+	color = [0,0,0]
+	if c>0 and c < 10:
+		color=colors[0]
+		info(f"DoS: <10 executions @ {hex(addr)}")
+	elif c>=10 and c < 50:
+		color=colors[1]
+		info(f"DoS: +10 executions @ {hex(addr)}")
+	elif c>=50 and c < 100:
+		color=colors[2]
+		info(f"DoS: +50 executions @ {hex(addr)}")
+	elif c>=100 and c < 500:
+		color=colors[3]
+		info(f"DoS: +100 executions @ {hex(addr)}")
+	elif c>=500 and c < 1000:
+		color=colors[4]
+		bv.set_comment_at(addr, "+500 executions")
+		info(f"DoS: +500 executions @ {hex(addr)}")
+	elif c>=1000 and c<10000:
+		color=colors[5]
+		bv.set_comment_at(addr, "+1k executions")
+		info(f"DoS: +1000 executions @ {hex(addr)}")
+	elif c>=10000 and c<100000:
+		color=colors[6]
+		bv.set_comment_at(addr, "+10k executions")
+		info(f"DoS: +10000 executions @ {hex(addr)}")
+	elif c>=100000 and c<1000000:
+		color=colors[7]
+		bv.set_comment_at(addr, "+100k executions")
+		info(f"DoS: +100k executions @ {hex(addr)}")
+	elif c>=1000000 and c<10000000:
+		color=colors[8]
+		bv.set_comment_at(addr, "+1M executions")
+		info(f"DoS: +1M executions @ {hex(addr)}")
+	elif c>=10000000:
+		color=colors[9]
+		bv.set_comment_at(addr, "+10M executions")
+		info(f"DoS: +10M executions @ {hex(addr)}")
 	blocks = bv.get_basic_blocks_at(addr)
-	#UIPlugin.path.append(addr)
 	for block in blocks:
-		block.set_auto_highlight(bn.HighlightColor(
-			bn.HighlightStandardColor.GreenHighlightColor, alpha=128))
-		block.function.set_auto_instr_highlight(
-			addr, bn.HighlightStandardColor.GreenHighlightColor)
+		block.set_auto_highlight(bn.HighlightColor(red=color[0],green=color[1], blue=color[2]))
+		block.function.set_auto_instr_highlight(addr,bn.HighlightColor(red=color[0],green=color[1],blue=color[2]))
 
 
 # Function Dumper
@@ -178,7 +230,7 @@ def devi(bv: bn.BinaryView, func: bn.Function):
 
 @message_handler
 def on_devi(msg: dict, data: Optional[bytes], bv: bn.BinaryView, func: bn.Function, dump_data: dict):
-    #print(msg)
+	#print(msg)
 	if "callList" in msg.keys():
 		dump_data["callList"].extend(msg["callList"])
 	elif "moduleMap" in msg.keys():
