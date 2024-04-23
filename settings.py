@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from binaryninja import BinaryView
 from frida.core import Device
 import binaryninja as bn
@@ -23,7 +23,7 @@ class Settings():
 	attach_pid: Optional[int] = None
 	file_target: str = ""
 	cmdline: str = ""
-	console_history: list[str] = []
+	console_history: List[str] = []
 
 	# TODO: P2P functionality
 	# TODO: Certificate support
