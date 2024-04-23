@@ -2,21 +2,24 @@
 {{ function_header(bv, func) }}
 const file_path = "{{file_path}}";
 
+console.log(`Module = ${func_{{func.start}}_module}`);
+
 function getBacktrace(context) {
   return Thread.backtrace(context, Backtracer.ACCURATE).map((x) => x.sub(func_{{ func.start }}_module).toString(10))
 }
 
 let fileOpens = {};
 
+console.log("[*] hooking input symbol:open");
 Interceptor.attach(Module.getExportByName(null, 'open'), {
   onEnter(args) {
         this.path = args[0].readUtf8String(); // pathname
-        // console.log("[*] trying to open:[" + this.path + "]");
+        console.log("[*] trying to open:[" + this.path + "]");
   },
 
   onLeave(retval) {
       if(retval.toInt32()<0) {
-        // console.log("[!] cannot open:[" + this.path + "]");
+        console.log("[!] cannot open:[" + this.path + "]");
         return
       }
 	  fileOpens[retval] = this.path;
@@ -24,10 +27,11 @@ Interceptor.attach(Module.getExportByName(null, 'open'), {
 
 })
 
+console.log("[*] hooking input symbol:close");
 Interceptor.attach(Module.getExportByName(null, 'close'), {
   onEnter(args) {
       const fd = args[0].toString();
-      // console.log("[*] closing:[" + fd + "], path=[" + fileOpens[fd] + "]");
+      console.log("[*] closing:[" + fd + "], path=[" + fileOpens[fd] + "]");
       delete fileOpens[fd];
   },
 })
@@ -60,6 +64,7 @@ const handleRead = {
             if(fileOpens[fd].includes(file_path)) {
                 console.log('[*] reading from fd:[' + fd + '], path:[' + fileOpens[fd] + '], buf = [' + buf + '], size=[' + size + '], pos=[' + pos +']');
                 readEvent["fd"] = fd;
+                readEvent["api"] = "read";
                 readEvent["buf"] = buf;
                 readEvent["size"] = size;
                 readEvent["path"] = fileOpens[fd];
@@ -75,8 +80,8 @@ const handleRead = {
   onLeave(retval) {
         if(this.readEvent) {
             const readEvent = this.readEvent;
-            let hd = hexdump(readEvent['buf'], { length: Math.min(16,readEvent['size']), ansi: false, header:false})
-            hd = hd.substring(hd.indexOf(' ')+1)
+            let hd = hexdump(readEvent['buf'], { length: Math.min(16,readEvent['size']), ansi: false, header:false});
+            hd = hd.substring(hd.indexOf(' ')+1);
             readEvent.hexdump = hd;
             readEvent.retval = retval;
             send(readEvent);
@@ -91,4 +96,45 @@ for(const inputf of inputFunctions) {
         console.log("[*] hooking input symbol:" + inputf);
         Interceptor.attach(Module.getExportByName(null, inputf), handleRead);
     }
+}
+
+const handleMmap = {
+    onEnter(args) {
+        this.size = args[1];
+        this.fd = args[4];
+        this.pos = args[5];
+        // console.log('[*] trying to mmap fd:[' + this.fd + '], path:[' + fileOpens[this.fd] + '], size=[' + this.size + ']');
+    },
+
+    onLeave(retval) {
+        if(!fileOpens.hasOwnProperty(this.fd)) {
+            console.log('[!] Unknown fd ' + this.fd);
+        } else {
+            if(fileOpens[this.fd].includes(file_path)) {
+                const readEvent = {};
+                const buf = retval;
+                console.log('[*] returning from mmap fd:[' + this.fd + '], path:[' + fileOpens[this.fd] + '], buf = [' + buf + '], size=[' + this.size + '], pos=[' + this.pos +']');
+                readEvent["fd"] = this.fd;
+                readEvent["api"] = "mmap";
+                readEvent["buf"] = buf;
+                readEvent["size"] = this.size;
+                readEvent["path"] = fileOpens[this.fd];
+                readEvent["backtrace"] = getBacktrace(this.context);
+                readEvent["return"] = this.returnAddress.sub(func_{{func.start}}_module);
+                readEvent["pos"] = this.pos;
+                readEvent["context"] = this.context;
+                let hd = hexdump(readEvent['buf'], { length: Math.min(16,readEvent['size']), ansi: false, header:false});
+                hd = hd.substring(hd.indexOf(' ')+1);
+                readEvent.hexdump = hd;
+                readEvent.retval = retval;
+                this.readEvent = readEvent;
+                send(readEvent);
+            }
+        }
+    }
+}
+
+if(Module.findExportByName(null,'mmap')) {
+    console.log("[*] hooking input symbol:mmap");
+    Interceptor.attach(Module.getExportByName(null, 'mmap'), handleMmap);
 }
