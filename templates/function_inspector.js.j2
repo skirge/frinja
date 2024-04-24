@@ -14,7 +14,7 @@ let done = false;
 
 Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter: function(args) {
-        if(done) 
+        if(done)
             return;
 		for (const block of basic_blocks) {
 			const instr = Instruction.parse(block)
@@ -53,7 +53,7 @@ Process.setExceptionHandler(args => {
 		if(visited[addr]!==undefined) {
             visited[addr]=visited[addr]+1;
         } else {
-            visited[addr]=0;
+            visited[addr]=1;
         }
         var c = visited[addr];
 
