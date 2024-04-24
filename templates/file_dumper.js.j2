@@ -14,13 +14,13 @@ console.log("[*] hooking input symbol:open");
 Interceptor.attach(Module.getExportByName(null, 'open'), {
   onEnter(args) {
         this.path = args[0].readUtf8String(); // pathname
-        console.log("[*] trying to open:[" + this.path + "]");
+        //console.log("[*] trying to open:[" + this.path + "]");
   },
 
   onLeave(retval) {
       if(retval.toInt32()<0) {
-        console.log("[!] cannot open:[" + this.path + "]");
-        return
+        //console.log("[!] cannot open:[" + this.path + "]");
+        return;
       }
 	  fileOpens[retval] = this.path;
   }
@@ -31,7 +31,7 @@ console.log("[*] hooking input symbol:close");
 Interceptor.attach(Module.getExportByName(null, 'close'), {
   onEnter(args) {
       const fd = args[0].toString();
-      console.log("[*] closing:[" + fd + "], path=[" + fileOpens[fd] + "]");
+      //console.log("[*] closing:[" + fd + "], path=[" + fileOpens[fd] + "]");
       delete fileOpens[fd];
   },
 })
