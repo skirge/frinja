@@ -14,6 +14,16 @@ let done = false;
 
 Interceptor.attach(func_{{ func.start }}_ptr, {
 	onEnter: function(args) {
+        let addr = ptr({{func.start - bv.start}});
+		if(visited[addr]!==undefined) {
+            visited[addr]=visited[addr]+1;
+        } else {
+            visited[addr]=1;
+        }
+        send({
+            "addr" : addr,
+            "count" : visited[addr]
+            });
         if(done)
             return;
 		for (const block of basic_blocks) {
