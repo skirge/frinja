@@ -44,11 +44,11 @@ except ImportError:
 	warn("devi plugin not found, disabling devi support")
 	pass
 
-try:
-	import bnsnippets
-	from .snippets import *
-	info("snippets plugin found, enabling snippets support")
-except ImportError:
-	info("snippets plugin not found, disabling snippets support")
+# try:
+# 	import bnsnippets
+# 	from .snippets import *
+# 	info("snippets plugin found, enabling snippets support")
+# except ImportError:
+# 	info("snippets plugin not found, disabling snippets support")
 
 # ui.GlobalArea.addWidget(lambda _: CONSOLE)
