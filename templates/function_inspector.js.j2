@@ -29,8 +29,8 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 		for (const block of basic_blocks) {
 			const instr = Instruction.parse(block)
 			const page = Memory.alloc(Process.pageSize);
-			const return_ptr = block.add(1)
-
+			const return_ptr = block.add(instr.size) // TODO: size of breakpoint instruction for given arch
+			console.log(`[*] relocating ${block} = ${page}`);
 			hooked_blocks[block] = page;
 
 			// Move the code to the new memory page
@@ -49,7 +49,6 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 			Memory.patchCode(block, 64, function(code) {
 				const writer = new X86Writer(code, {pc: code})
 				writer.putBreakpoint();
-				writer.putNopPadding(instr.size - 1);
 			});
 		}
         done = true;
@@ -98,7 +97,14 @@ Process.setExceptionHandler(args => {
                 });
         }
 
-		args.context["pc"] = hooked_blocks[args.address.sub(1)];
+	// for some strange cases breakpoint was not set by us
+        if(args.address in hooked_blocks) {
+            args.context["pc"] = hooked_blocks[args.address];
+        } else {
+             console.log(`[*] breakpoint on unknown address VA:${args.address}, RVA:${addr}`);
+		Interceptor.detachAll();
+ 		throw new Error(`CSocketIP::Read error on tracing`);
+        }
 
         if(c>=10000001) {
             console.log("[*] Maximum threshold of 10M reached");
@@ -109,7 +115,6 @@ Process.setExceptionHandler(args => {
 		return true;
 	}
 
-    console.log("Unknown exception type");
-	console.log(args.type)
+	console.log(`Unknown exception type: ${args.type} on address ${args.address}`);
 	return false
 });
