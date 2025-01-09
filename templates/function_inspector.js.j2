@@ -30,7 +30,7 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 			const instr = Instruction.parse(block)
 			const page = Memory.alloc(Process.pageSize);
 			const return_ptr = block.add(instr.size) // TODO: size of breakpoint instruction for given arch
-			console.log(`[*] relocating ${block} = ${page}`);
+			console.log(`[*] relocating ${block} = ${page} of size: ${instr.size}`);
 			hooked_blocks[block] = page;
 
 			// Move the code to the new memory page
@@ -57,8 +57,11 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
 
 Process.setExceptionHandler(args => {
 	if(args.type === "breakpoint"){
+
 		// Send the basic block offset to the python script as we don't know the module base address
-        let addr = args.address.sub(func_{{ func.start }}_module).sub(1);
+        let addr = args.address.sub(func_{{ func.start }}_module);
+        //console.log(`[*] breakpoint at ${addr}, pc:${args.context["pc"]}`);
+
 		if(visited[addr]!==undefined) {
             visited[addr]=visited[addr]+1;
         } else {
@@ -67,7 +70,8 @@ Process.setExceptionHandler(args => {
         var c = visited[addr];
 
         let dosend = false;
-		if(c==1) {
+
+		if(c>0 && c<5) {
             dosend = true;
         } else if(c==10) {
             dosend = true;
@@ -95,15 +99,17 @@ Process.setExceptionHandler(args => {
                 "addr" : addr,
                 "count" : c
                 });
-        }
+        } /*else {
+            console.log(`[*] not sending for ${addr}:${c}`);
+        } */
 
 	// for some strange cases breakpoint was not set by us
         if(args.address in hooked_blocks) {
             args.context["pc"] = hooked_blocks[args.address];
         } else {
-             console.log(`[*] breakpoint on unknown address VA:${args.address}, RVA:${addr}`);
+             console.log(`[*] breakpoint on unknown address VA:${args.address}, RVA:${addr}, probably two sessions, restart process!`);
 		Interceptor.detachAll();
- 		throw new Error(`CSocketIP::Read error on tracing`);
+ 		throw new Error(`{{ func.name }} error on tracing`);
         }
 
         if(c>=10000001) {
