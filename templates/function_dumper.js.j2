@@ -11,89 +11,274 @@ function getBacktrace(context) {
 
 const mallloc_funcs = ['malloc', 'calloc', 'realloc'];
 
+function resolve_symbol(symname) {
+    const sym_ptr = Module.findExportByName(null, symname);
+    if(sym_ptr)
+        return sym_ptr;
+    console.log(`[*] not ${symname} in import table`);
+    const debug_ptr = DebugSymbol.fromName(symname);
+    if(debug_ptr && debug_ptr.address)
+        return ptr(debug_ptr.address);
+    console.log(`[*] not ${symname} in debug symbols`);
+    return null;
+}
+
 function attach_malloc(symname) {
-    const sym_ptr = Module.getExportByName(null, symname);
-	Interceptor.attach(sym_ptr, {
+    const sym_ptr = resolve_symbol(symname);
+    Interceptor.attach(sym_ptr, {
 
-		onEnter(args) {
-        this.size = args[0];
-    },
+        onEnter(args) {
+            //console.log(`[*] malloc onEnter`);
+            this.size = args[0];
+        },
 
-		onLeave(retval) {
-        const allocEvent = {};
-        allocEvent["buf"] = retval.toString();
-        allocEvent["size"] = this.size;
-        allocEvent["backtrace"] = getBacktrace(this.context);
-        memAllocs[retval.toString()] =  allocEvent;
-    }
-});
+        onLeave(retval) {
+            const allocEvent = {};
+            allocEvent["buf"] = retval.toString();
+            allocEvent["size"] = this.size;
+            allocEvent["backtrace"] = getBacktrace(this.context);
+            memAllocs[retval.toString()] =  allocEvent;
+        }
+    });
 }
 
 mallloc_funcs.forEach(attach_malloc);
 
-const free_ptr = Module.getExportByName(null, 'free');
+const va_ptr = resolve_symbol('VirtualAlloc');
+console.log(`[*] VirtualAlloc:${va_ptr}`);
+if(va_ptr) {
+    console.log(`[*] Attaching to VirtualAlloc`);
+    Interceptor.attach(va_ptr, {
 
-Interceptor.attach(free_ptr, {
-	onEnter(args) {
-      const memPtr = args[0].toString();
-        delete memAllocs[memPtr];
-        if(fileReads.hasOwnProperty(memPtr)) {
-            delete fileReads[memPtr];
+        onEnter(args) {
+            //console.log(`[*] VirtualAlloc onEnter`);
+            this.size = args[1];
+        },
+
+        onLeave(retval) {
+            const allocEvent = {};
+            allocEvent["buf"] = retval.toString();
+            allocEvent["size"] = this.size;
+            allocEvent["backtrace"] = getBacktrace(this.context);
+            memAllocs[retval.toString()] =  allocEvent;
         }
+    });
+
+}
+
+const ha_ptr = resolve_symbol('HeapAlloc');
+console.log(`[*] HeapAlloc:${ha_ptr}`);
+if(ha_ptr) {
+    console.log(`[*] Attaching to HeapAlloc`);
+    Interceptor.attach(ha_ptr, {
+
+        onEnter(args) {
+            //console.log(`[*] HeapAlloc onEnter`);
+            this.size = args[2];
+        },
+
+        onLeave(retval) {
+            const allocEvent = {};
+            allocEvent["buf"] = retval.toString();
+            allocEvent["size"] = this.size;
+            allocEvent["backtrace"] = getBacktrace(this.context);
+            memAllocs[retval.toString()] =  allocEvent;
+        }
+    });
+
+}
+
+const hr_ptr = resolve_symbol('HeapReAlloc');
+console.log(`[*] HeapReAlloc:${hr_ptr}`);
+if(hr_ptr) {
+    console.log(`[*] Attaching to HeapReAlloc`);
+    Interceptor.attach(hr_ptr, {
+
+        onEnter(args) {
+            //console.log(`[*] HeapReAlloc onEnter`);
+            this.size = args[3];
+        },
+
+        onLeave(retval) {
+            const allocEvent = {};
+            allocEvent["buf"] = retval.toString();
+            allocEvent["size"] = this.size;
+            allocEvent["backtrace"] = getBacktrace(this.context);
+            memAllocs[retval.toString()] =  allocEvent;
+        }
+    });
+
+}
+
+const ga_ptr = resolve_symbol('GlobalAlloc');
+console.log(`[*] GlobalAlloc:${ga_ptr}`);
+if(ga_ptr) {
+    console.log(`[*] Attaching to GlobalAlloc`);
+    Interceptor.attach(ga_ptr, {
+
+        onEnter(args) {
+            //console.log(`[*] GlobalAlloc onEnter`);
+            this.size = args[1];
+        },
+
+        onLeave(retval) {
+            const allocEvent = {};
+            allocEvent["buf"] = retval.toString();
+            allocEvent["size"] = this.size;
+            allocEvent["backtrace"] = getBacktrace(this.context);
+            memAllocs[retval.toString()] =  allocEvent;
+        }
+    });
+
+}
+
+
+const free_funcs = ['free','VirtualFree', 'GlobalFree'];
+function attach_free(symname) {
+    const sym_ptr = resolve_symbol(symname);
+    console.log(`[*] ${symname}:${sym_ptr}`);
+    if(sym_ptr) {
+        console.log(`[*] Attaching to ${symname}`);
+        Interceptor.attach(sym_ptr, {
+            onEnter(args) {
+                //console.log(`[*] free onEnter`);
+                const memPtr = args[0].toString();
+                delete memAllocs[memPtr];
+                if(fileReads.hasOwnProperty(memPtr)) {
+                    delete fileReads[memPtr];
+                }
+            }
+        });
     }
+}
 
-});
+free_funcs.forEach(attach_free);
 
+const hf_ptr = resolve_symbol('HeapFree');
+console.log(`[*] HeapFree:${hf_ptr}`);
+if(hf_ptr) {
+    console.log(`[*] Attaching to HeapFree`);
+    Interceptor.attach(hf_ptr, {
+        onEnter(args) {
+            //console.log(`[*] HeapFree onEnter`);
+            const memPtr = args[2].toString();
+            delete memAllocs[memPtr];
+            if(fileReads.hasOwnProperty(memPtr)) {
+                delete fileReads[memPtr];
+            }
+        }
+    });
+}
 
 let fileOpens = {};
 
-Interceptor.attach(Module.getExportByName(null, 'open'), {
-  onEnter(args) {
-    this.path = args[0].readUtf8String(); // pathname
-  },
+const open_ptr = resolve_symbol('open');
+console.log(`[*] open:${open_ptr}`);
+if(open_ptr) {
+    console.log(`[*] Attaching to open`);
+    Interceptor.attach(open_ptr, {
+        onEnter(args) {
+            //console.log(`[*] open onEnter`);
+            this.path = args[0].readUtf8String(); // pathname
+        },
 
-  onLeave(retval) {
-      if(retval.toInt32()<0) {
-        console.log("-- cannot open:[" + this.path + "]");
-        return
-      }
-	  fileOpens[retval.toString()] = this.path;
-  }
+        onLeave(retval) {
+            if(retval.toInt32()<0) {
+                console.log("-- cannot open:[" + this.path + "]");
+                return
+            }
+            fileOpens[retval.toString()] = this.path;
+        }
 
-})
+    })
+}
 
-Interceptor.attach(Module.getExportByName(null, 'socket'), {
+const openf_ptr = resolve_symbol('CreateFileA');
+console.log(`[*] CreateFileA:${openf_ptr}`);
+if(openf_ptr) {
+    console.log(`[*] Attaching to CreateFileA`);
+    Interceptor.attach(openf_ptr, {
+        onEnter(args) {
+            //console.log(`[*] CreateFileA onEnter`);
+            this.path = args[0].readUtf8String(); // pathname
+        },
 
-  onLeave(retval) {
-      if(retval.toInt32()<0) {
-        console.log("-- cannot open socket");
-        return
-      }
-	  fileOpens[retval.toString()] = "NETWORK";
-  }
+        onLeave(retval) {
+            if(retval.toInt32()<0) {
+                console.log("-- cannot open:[" + this.path + "]");
+                return
+            }
+            fileOpens[retval.toString()] = this.path;
+        }
+    })
+}
 
-})
 
-Interceptor.attach(Module.getExportByName(null, 'close'), {
-  onEnter(args) {
-      const fd = args[0].toString();
-      delete fileOpens[fd];
-  },
-})
+const socket_funcs = ['socket'];
 
+function attach_socket(symname) {
+    const socket_ptr = resolve_symbol(symname);
+    console.log(`[*] ${symname}:${openf_ptr}`);
+    if(!socket_ptr) {
+        console.log(`[*] not ${symname} in import table`);
+        return;
+    }
+    console.log(`[*] Attaching to ${symname}`);
+    Interceptor.attach(socket_ptr, {
+
+        onLeave(retval) {
+            //console.log(`[*] socket onLeave`);
+            if(retval.toInt32()<0) {
+                console.log("-- cannot open socket");
+                return
+            }
+            fileOpens[retval.toString()] = "NETWORK";
+        }
+    })
+}
+
+socket_funcs.forEach(attach_socket);
+
+const close_ptr = resolve_symbol('close');
+console.log(`[*] close:${close_ptr}`);
+if(close_ptr) {
+    console.log(`[*] Attaching to close`);
+    Interceptor.attach(close_ptr, {
+        onEnter(args) {
+            //console.log(`[*] close onEnter`);
+            const fd = args[0].toString();
+            delete fileOpens[fd];
+        },
+    })
+}
+
+const closeh_ptr = resolve_symbol('CloseHandle');
+console.log(`[*] CloseHandle:${closeh_ptr}`);
+if(closeh_ptr) {
+    console.log(`[*] Attaching to CloseHandle`);
+    Interceptor.attach(closeh_ptr, {
+        onEnter(args) {
+            //console.log(`[*] CloseHandle onEnter`);
+            const fd = args[0].toString();
+            delete fileOpens[fd];
+        },
+    })
+}
 
 const handleRead = {
   onEnter(args) {
 
     // Save arguments for processing in onLeave.
 	  const readEvent = {};
+        //console.log(`[*] read onEnter`);
 
         const fd = args[0].toString();
         const buf = args[1].toString();
         const size = args[2].toString();
 
         if(!fileOpens.hasOwnProperty(fd)) {
-            console.log('[!] Unknown fd ' + fd);
+            //console.log('[!] Unknown fd ' + fd);
+            fileOpens[fd] = 'Unknown';
         }
         //console.log('[*] reading from fd:[' + fd + '], path:[' + fileOpens[fd] + ']');
         readEvent["size"] = size;
@@ -105,12 +290,13 @@ const handleRead = {
 
 }
 
-const inputFunctions = ['read', 'recv', 'recvfrom'];
+const inputFunctions = ['ReadFile', 'ReadFileEx', 'read', 'recv', 'recvfrom','WSARecv'];
 
 for(const inputf of inputFunctions) {
-    if(Module.findExportByName(null,inputf)) {
+    const inputf_ptr = resolve_symbol(inputf);
+    if(inputf_ptr) {
         console.log("[*] hooking input symbol:" + inputf);
-        Interceptor.attach(Module.getExportByName(null, inputf), handleRead);
+        Interceptor.attach(inputf_ptr, handleRead);
     }
 }
 
@@ -264,25 +450,42 @@ Interceptor.attach(func_{{ func.start }}_ptr, {
         */
     }
 
-    send({
+    const resolved_args = {};
+
+    {% for param in func.parameter_vars -%}
+        {%- set index = loop.index0 | string -%}
+        try {
+            resolved_args["{{param.name}}"] = {{- argparse(param, "args[" + index + "]") -}};
+        } catch ({ name, message, stack }) {
+            /*
+            console.log("resolving arguments");
+            console.log(name);
+            console.log(stack);
+            console.log(message);
+            */
+        }
+    {% endfor %}
+
+    //console.log(`[*] resolved_args = ${JSON.stringify(resolved_args)}`);
+
+    const msg = {
         "context": this.context,
         "backtrace" : getBacktrace(this.context),
         "return": this.returnAddress.sub(func_{{ func.start }}_module),
             "depth": this.depth,
             "thread_id": this.threadId,
             "index": index++,
-            "args": {
-        {% for param in func.parameter_vars -%}
-            {%- set index = loop.index0 | string -%}
-            "{{ param.name }}": {{- argparse(param, "args[" + index + "]") -}},
-            {% endfor %}
-        },
+            "args": resolved_args,
             "fileReads": buffers,
             "fds" : fileOpens,
             "heap" : heap,
             "pointers" : derefs
 
-    })
+    }
+
+    //console.log(`[*] msg = ${JSON.stringify(msg)}`);
+
+    send(msg);
 	},
 	onLeave(retval) {
         console.log("[*] Leaving hooked function");

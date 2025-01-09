@@ -109,7 +109,14 @@
 {{ backtrace(frame["backtrace"]) }}
 
 ### Arguments:
-Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.int_arg_regs }}
+Calling convention: {{ func.calling_convention }}
+
+| Argument | Source Type | Storage |
+|----------|-------------| --------|
+{% for arg in func.parameter_vars -%}
+`{{arg.name}}` | {{arg.source_type.name}} | {{arg.storage}} |
+{% endfor %}
+
 
 | Argument | Value | Pointer     |Heap buffer | File buffer |
 |----------|-------|-------------|------------|-------------|
@@ -157,9 +164,11 @@ Arguments passed in : {{ bv.arch.standalone_platform.default_calling_convention.
 | Argument | Value |
 |----------|-------|
 {%- for key, value in frame["fds"].items() %}
-| {{ key }} | {{ value }} |
+| `{{ key }}` | `{{ value }}` |
 {% endfor %}
 
+
 {% endfor %}
+
 
 ---
